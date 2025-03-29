@@ -58,6 +58,10 @@ app.use((req, res, next) => {
     next();
 });
 
+app.get('/hello', (req, res) => {
+  res.json({ message: 'Hello, world!' });
+});
+
 // Use the routes
 app.use('/api', routes);
 
