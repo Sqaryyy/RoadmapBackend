@@ -1,0 +1,121 @@
+import { Request, Response } from 'express';
+import { User } from '../interfaces/IUser';
+import { UserModel } from '../models/User';
+
+export interface ClerkRequest extends Request {
+    auth: {
+      userId: string;
+      [key: string]: any;
+    };
+  }
+// Helper function that can still be used directly if needed
+export const checkAndResetMonthlyCounter = async (clerkId: string): Promise<User> => {
+  console.log("checkAndResetMonthlyCounter called with clerkId:", clerkId);
+    const user = await UserModel.findOne({ clerkId }); // Find by clerkId
+    if (!user) {
+      throw new Error('User not found');
+    }
+  
+    const now = new Date();
+    const lastReset = new Date(user.lastTopicCreationReset);
+  
+    // Check if it's a new month since the last reset
+    if (now.getMonth() !== lastReset.getMonth() || now.getFullYear() !== lastReset.getFullYear()) {
+      // Reset counter for the new month
+      user.topicsCreatedThisMonth = 0;
+      user.lastTopicCreationReset = now;
+      await user.save();
+    }
+  
+    return user;
+  };
+
+// Plan limits - you might want to move this to a config file or database
+const PLAN_LIMITS: Record<string, number> = {
+  'basic': 3,
+  'premium': 10,
+  'business': 50,
+  // Default for users without a plan
+  'default': 3
+};
+
+export const canCreateTopic = async (req: ClerkRequest, res: Response): Promise<void> => {
+  console.log("canCreateTopic called");
+    try {
+      const userId = req.auth?.userId;
+      console.log("User ID from Clerk Auth:", userId);
+
+      if (!userId) {
+        console.log("User not authenticated");
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
+  
+      // Get user with populated plan
+      console.log("Finding user by clerkId:", userId);
+      const user = await UserModel.findOne({ clerkId: userId }).populate('planId'); // Find by clerkId
+      console.log("User found:", user);
+
+      if (!user) {
+        console.log("User not found in database");
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+  
+      // Check and reset monthly counter if needed
+      await checkAndResetMonthlyCounter(userId);
+  
+      // Get the topic limit from the user's plan
+      const plan = user.planId as any; // Using any because TypeScript doesn't know planId is populated
+  
+      // Default to 3 if no plan or topicsPerMonth is not set
+      const limit = plan?.topicsPerMonth || PLAN_LIMITS.default;
+      console.log("Plan Limit:", limit);
+  
+      // Special case: -1 means unlimited topics
+      const canCreate = limit === -1 || user.topicsCreatedThisMonth < limit;
+      console.log("Can Create Topic:", canCreate);
+  
+      // Prepare response object
+      const response: any = {
+        canCreate,
+        topicsCreated: user.topicsCreatedThisMonth,
+        limit: limit === -1 ? 'Unlimited' : limit,
+      };
+  
+      // Add remaining count only for limited plans
+      if (limit !== -1) {
+        response.remaining = limit - user.topicsCreatedThisMonth;
+      }
+  
+      console.log("Response:", response);
+      res.json(response);
+    } catch (error) {
+      console.error('Error checking topic creation limit:', error);
+      res.status(500).json({ error: 'Failed to check topic creation limit' });
+    }
+  };
+
+  export const incrementTopicCounter = async (req: ClerkRequest, res: Response): Promise<void> => {
+    console.log("incrementTopicCounter called");
+    try {
+      const userId = req.auth?.userId;
+      console.log("User ID from Clerk Auth:", userId);
+
+      if (!userId) {
+        console.log("User not authenticated");
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
+  
+      console.log("Incrementing topic counter for clerkId:", userId);
+      await UserModel.findOneAndUpdate({ clerkId: userId }, {  // Find and Update by clerkId
+        $inc: { topicsCreatedThisMonth: 1 }
+      });
+  
+      res.status(200).json({ success: true });
+    } catch (error) {
+      console.error('Error incrementing topic counter:', error);
+      res.status(500).json({ error: 'Failed to increment topic counter' });
+    }
+  };

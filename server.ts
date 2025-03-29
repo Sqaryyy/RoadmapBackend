@@ -22,7 +22,8 @@ redisClient.ping()
 
 // Define allowed origins
 const allowedOrigins = [
-  'https://roadmap.it.com', // Replace with your actual domain
+  'https://roadmap.it.com', 
+  'http://localhost:3000',// Replace with your actual domain
 ];
 
 // CORS Options

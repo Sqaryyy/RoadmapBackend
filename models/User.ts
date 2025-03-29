@@ -13,9 +13,9 @@ export const userSchema: Schema<User> = new Schema({
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
     skills: [{ type: Schema.Types.ObjectId, ref: 'Skill' }], // Use Schema.Types.ObjectId
-    planId: { type: Schema.Types.ObjectId, ref: 'Plan', required: true }, // Reference the Plan model
-    topicsCreatedThisMonth: { type: Number, default: 0 }, // Tracks topics viewed this month.
-    lastTopicCreationReset: { type: Date, default: Date.now }, // When the topic view count was last reset.
+    planId: { type: Schema.Types.ObjectId, ref: 'Plan', required: true }, 
+    topicsCreatedThisMonth: { type: Number, default: 0 }, 
+    lastTopicCreationReset: { type: Date, default: Date.now },
 });
 
 export const UserModel = mongoose.model<User>('User', userSchema);
