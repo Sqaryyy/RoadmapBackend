@@ -20,8 +20,25 @@ redisClient.ping()
   .then(() => console.log('Connected to Redis'))
   .catch((error) => console.error('Redis connection error:', error));
 
+// Define allowed origins
+const allowedOrigins = [
+  'https://roadmap.it.com', // Replace with your actual domain
+];
+
+// CORS Options
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true); // Allow
+    } else {
+      callback(new Error('Not allowed by CORS')); // Deny
+    }
+  },
+  credentials: true, // Allow cookies to be sent cross-origin
+};
+
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 
 // Connect to MongoDB (replace with your actual connection string)
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/your_database_name')

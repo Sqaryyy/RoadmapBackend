@@ -60,7 +60,6 @@ const allowedEvents: Stripe.Event.Type[] = [
     'payment_intent.succeeded',
     'payment_intent.payment_failed',
     'payment_intent.canceled',
-    'checkout.session.completed'
 ];
 
 async function processEvent(event: Stripe.Event): Promise<boolean> {
