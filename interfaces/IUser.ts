@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import { Types, Document } from 'mongoose';
 
 export interface User extends Document {
     clerkId: string;
@@ -8,8 +8,14 @@ export interface User extends Document {
     imageUrl?: string;
     createdAt?: Date;
     updatedAt?: Date;
+
+    // Skills tracking
     skills: Types.ObjectId[];
-    planId: Types.ObjectId | string;  // Changed to ObjectId or string
+    skillsAddedThisMonth: number;  // Track skills added this month
+    lastSkillAdditionReset: Date;  // Last reset date for skill tracking
+
+    // Subscription tracking
+    planId: Types.ObjectId | string;  
     topicsCreatedThisMonth: number;
     lastTopicCreationReset: Date;
 }

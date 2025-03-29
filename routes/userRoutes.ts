@@ -1,4 +1,3 @@
-// userRoutes.ts
 import express from 'express';
 import {
     createUser,
@@ -10,7 +9,12 @@ import {
     success              // Import the success controller
 } from '../controllers/userController';
 import { requireAuth } from '@clerk/express';
-import { canCreateTopic,incrementTopicCounter } from '../utils/userLimits';
+import { 
+    canCreateTopic, 
+    incrementTopicCounter,
+    canAddSkill, 
+    incrementSkillCounter 
+} from '../utils/userLimits';
 import { ClerkRequest } from '../utils/userLimits';
 
 const router = express.Router();
@@ -25,14 +29,22 @@ router.delete('/:id', requireAuth(), deleteUser);
 router.post('/create-subscription', createSubscription); // Route to create a Stripe Checkout Session
 router.get('/success', requireAuth(), success); // Route for successful subscription
 
-//App Limits Routes
-router.get('/check/can-create-topic', requireAuth(), (req, res) => {
-    // The req here will have the auth property added by requireAuth
+// Topic Limits Routes
+router.get('/check/can-create-topic', (req, res) => {
     return canCreateTopic(req as ClerkRequest, res);
-  });
-  
-router.post('/can-create-topic', requireAuth(), (req, res) => {
+});
+
+router.post('/increment-topic-counter', requireAuth(), (req, res) => {
     return incrementTopicCounter(req as ClerkRequest, res);
+});
+
+// Skill Limits Routes
+router.get('/check/can-add-skill', (req, res) => {
+    return canAddSkill(req as ClerkRequest, res);
+});
+
+router.post('/increment-skill-counter', requireAuth(), (req, res) => {
+    return incrementSkillCounter(req as ClerkRequest, res);
 });
 
 export default router;

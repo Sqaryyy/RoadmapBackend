@@ -34,17 +34,16 @@ export const checkAndResetMonthlyCounter = async (clerkId: string): Promise<User
 const PLAN_LIMITS: Record<string, number> = {
   'basic': 3,
   'premium': 10,
-  'business': 50,
-  // Default for users without a plan
+
   'default': 3
 };
 
 export const canCreateTopic = async (req: ClerkRequest, res: Response): Promise<void> => {
-  console.log("canCreateTopic called");
+    console.log("canCreateTopic called");
     try {
       const userId = req.auth?.userId;
       console.log("User ID from Clerk Auth:", userId);
-
+  
       if (!userId) {
         console.log("User not authenticated");
         res.status(401).json({ error: 'User not authenticated' });
@@ -55,9 +54,14 @@ export const canCreateTopic = async (req: ClerkRequest, res: Response): Promise<
       console.log("Finding user by clerkId:", userId);
       const user = await UserModel.findOne({ clerkId: userId }).populate('planId'); // Find by clerkId
       console.log("User found:", user);
-
+  
       if (!user) {
         console.log("User not found in database");
+  
+        // Fetch and log all users in the database for debugging
+        const users = await UserModel.find();
+        console.log("All Users in DB:", users);
+  
         res.status(404).json({ error: 'User not found' });
         return;
       }
@@ -95,6 +99,7 @@ export const canCreateTopic = async (req: ClerkRequest, res: Response): Promise<
       res.status(500).json({ error: 'Failed to check topic creation limit' });
     }
   };
+  
 
   export const incrementTopicCounter = async (req: ClerkRequest, res: Response): Promise<void> => {
     console.log("incrementTopicCounter called");
@@ -119,3 +124,83 @@ export const canCreateTopic = async (req: ClerkRequest, res: Response): Promise<
       res.status(500).json({ error: 'Failed to increment topic counter' });
     }
   };
+
+  export const checkAndResetMonthlySkillCounter = async (clerkId: string): Promise<User> => {
+    console.log("checkAndResetMonthlySkillCounter called with clerkId:", clerkId);
+    const user = await UserModel.findOne({ clerkId });
+  
+    if (!user) {
+      throw new Error('User not found');
+    }
+  
+    const now = new Date();
+    const lastReset = new Date(user.lastSkillAdditionReset || 0);
+  
+    if (now.getMonth() !== lastReset.getMonth() || now.getFullYear() !== lastReset.getFullYear()) {
+      user.skillsAddedThisMonth = 0;
+      user.lastSkillAdditionReset = now;
+      await user.save();
+    }
+  
+    return user;
+  };
+  
+  export const canAddSkill = async (req: ClerkRequest, res: Response): Promise<void> => {
+    console.log("canAddSkill called");
+  
+    try {
+      const userId = req.auth?.userId;
+      if (!userId) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
+  
+      const user = await UserModel.findOne({ clerkId: userId }).populate('planId');
+      if (!user) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+  
+      await checkAndResetMonthlySkillCounter(userId);
+  
+      const plan = user.planId as any;
+      const skillLimit = plan?.maxSkills || PLAN_LIMITS.default;
+  
+      const canAdd = skillLimit === -1 || user.skillsAddedThisMonth < skillLimit;
+  
+      res.json({
+        canAdd,
+        skillsAdded: user.skillsAddedThisMonth,
+        limit: skillLimit === -1 ? 'Unlimited' : skillLimit,
+        remaining: skillLimit !== -1 ? skillLimit - user.skillsAddedThisMonth : 'Unlimited',
+      });
+  
+    } catch (error) {
+      console.error('Error checking skill addition limit:', error);
+      res.status(500).json({ error: 'Failed to check skill addition limit' });
+    }
+  };
+  
+  export const incrementSkillCounter = async (req: ClerkRequest, res: Response): Promise<void> => {
+    console.log("incrementSkillCounter called");
+  
+    try {
+      const userId = req.auth?.userId;
+      if (!userId) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
+  
+      await UserModel.findOneAndUpdate(
+        { clerkId: userId },
+        { $inc: { skillsAddedThisMonth: 1 } }
+      );
+  
+      res.status(200).json({ success: true });
+  
+    } catch (error) {
+      console.error('Error incrementing skill counter:', error);
+      res.status(500).json({ error: 'Failed to increment skill counter' });
+    }
+  };
+  
