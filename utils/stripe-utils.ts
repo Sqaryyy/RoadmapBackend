@@ -2,7 +2,8 @@
 import dotenv from 'dotenv';
 import Stripe from 'stripe';
 import Redis from 'ioredis';
-
+import { UserModel } from '../models/User';
+import { PlanModel } from '../models/Plan';
 
 dotenv.config();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -70,6 +71,78 @@ async function syncStripeDataToKV(customerId: string): Promise<STRIPE_SUB_CACHE>
     console.error("Error in syncStripeDataToKV:", error);
     return { status: "none" } as STRIPE_SUB_CACHE;
     // Consider throwing the error or returning a default value based on your needs
+  }
+}
+
+export async function startProPlanTrial(userId: string, email: string): Promise<boolean> {
+  try {
+    // Find the Pro plan to get the Stripe Price ID
+    const proPlan = await PlanModel.findOne({ name: 'Pro' });
+    if (!proPlan || !proPlan.stripePriceId) {
+      throw new Error('Pro plan not found or missing Stripe Price ID');
+    }
+
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Create or retrieve a Stripe customer
+    let customerId = user.stripeCustomerId;
+    
+    if (!customerId) {
+      // Create a new customer in Stripe
+      const customer = await stripe.customers.create({
+        email: email,
+        metadata: {
+          userId: userId
+        }
+      });
+      
+      customerId = customer.id;
+      
+      // Save the Stripe customer ID to the user
+      user.stripeCustomerId = customerId;
+      await user.save();
+    }
+
+    // Create a subscription with a trial period
+    const subscription = await stripe.subscriptions.create({
+      customer: customerId,
+      items: [{ price: proPlan.stripePriceId }],
+      trial_period_days: 7,
+      metadata: {
+        userId: userId
+      }
+    });
+
+    // Add a null check for trial_end
+    const trialEndDate = subscription.trial_end 
+    ? new Date(subscription.trial_end * 1000) 
+    : new Date(subscription.current_period_end * 1000); // Fallback to period end
+    
+    await UserModel.findByIdAndUpdate(userId, {
+      planId: proPlan._id,
+      subscriptionStatus: 'trialing',
+      subscriptionId: subscription.id,
+      trialEndDate: trialEndDate,
+      currentPeriodEnd: new Date(subscription.current_period_end * 1000)
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error starting Pro plan trial with Stripe:', error);
+    return false;
+  }
+}
+
+export async function cancelSubscription(subscriptionId: string): Promise<boolean> {
+  try {
+    await stripe.subscriptions.cancel(subscriptionId);
+    return true;
+  } catch (error) {
+    console.error('Error cancelling subscription:', error);
+    return false;
   }
 }
 
