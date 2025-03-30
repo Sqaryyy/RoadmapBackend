@@ -168,6 +168,10 @@ async function processEvent(event: Stripe.Event): Promise<boolean> {
                                             if ('currentPeriodEnd' in user && subscription.current_period_end) {
                                                 user.currentPeriodEnd = new Date(subscription.current_period_end * 1000);
                                             }
+                                            // Add this code where you update the user's fields:
+                                            if ('cancelAtPeriodEnd' in user) {
+                                                user.cancelAtPeriodEnd = subscription.cancel_at_period_end;
+}
                         
                                             user.updatedAt = new Date();
                                             await user.save();
@@ -527,6 +531,11 @@ async function handleSubscriptionDeleted(event: Stripe.Event) {
         if ('subscriptionId' in user) {
             user.subscriptionId = undefined;
         }
+
+        // Reset cancelAtPeriodEnd flag
+        if ('cancelAtPeriodEnd' in user) {
+            user.cancelAtPeriodEnd = false;
+        }
         
         user.updatedAt = new Date();
         await user.save();
@@ -534,7 +543,7 @@ async function handleSubscriptionDeleted(event: Stripe.Event) {
         // Update Redis cache
         await redisClient.set(`user:${clerkId}`, JSON.stringify(user));
         
-        console.log(`[STRIPE HOOK] Downgraded user ${clerkId} to Free plan after subscription canceled`);
+        console.log(`[STRIPE HOOK] Downgraded user ${clerkId} to Free plan after subscription ended`);
         
         // Optional: Send notification to user about subscription cancellation
     } catch (error) {

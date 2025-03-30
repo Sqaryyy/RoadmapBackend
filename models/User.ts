@@ -19,7 +19,7 @@ export const userSchema: Schema<User> = new Schema({
     skillsAddedThisMonth: { type: Number, default: 0 }, // Skills added per month
     lastSkillAdditionReset: { type: Date, default: Date.now }, // Reset date for skills
     stripeCustomerId: { type: String },
-    subscriptionStatus: { type: String, enum: ['active', 'paused', 'canceled', 'trialing', 'past_due', 'none'], default: 'none' },
+    subscriptionStatus: { type: String, enum: ['active', 'paused', 'cancelling','canceled', 'trialing', 'past_due', 'none'], default: 'none' },
     subscriptionId: { type: String },
     currentPeriodEnd: { type: Date },
     trialEndDate: { type: Date },
