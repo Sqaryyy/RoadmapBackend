@@ -82,7 +82,7 @@ export async function startProPlanTrial(userId: string, email: string): Promise<
       throw new Error('Pro plan not found or missing Stripe Price ID');
     }
 
-    const user = await UserModel.findById(userId);
+    const user = await UserModel.findOne({ clerkId: userId }); 
     if (!user) {
       throw new Error('User not found');
     }
@@ -121,13 +121,13 @@ export async function startProPlanTrial(userId: string, email: string): Promise<
     ? new Date(subscription.trial_end * 1000) 
     : new Date(subscription.current_period_end * 1000); // Fallback to period end
     
-    await UserModel.findByIdAndUpdate(userId, {
+    await UserModel.findByIdAndUpdate(user._id, { // Find and Update by _id
       planId: proPlan._id,
       subscriptionStatus: 'trialing',
       subscriptionId: subscription.id,
       trialEndDate: trialEndDate,
       currentPeriodEnd: new Date(subscription.current_period_end * 1000)
-    });
+    }, { new: true });
 
     return true;
   } catch (error) {
