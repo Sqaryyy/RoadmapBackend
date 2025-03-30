@@ -230,7 +230,7 @@ export async function createTrialCheckoutSession(
       cancel_url: `${redirectUrl}?canceled=true`
     });
 
-    return session.id;
+    return session.url;
   } catch (error) {
     console.error('Error creating trial checkout session:', error);
     return null;
@@ -238,4 +238,3 @@ export async function createTrialCheckoutSession(
 }
 
 export { syncStripeDataToKV };
-

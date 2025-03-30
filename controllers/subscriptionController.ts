@@ -1,4 +1,3 @@
-// src/controllers/subscriptionController.ts
 import { Response } from 'express';
 import { createTrialCheckoutSession, cancelSubscription } from '../utils/stripe-utils';
 import { UserModel } from '../models/User';
@@ -30,12 +29,12 @@ export async function startProTrial(req: ClerkRequest, res: Response) {
         });
       }
   
-      const sessionId = await createTrialCheckoutSession(clerkId, user.email, redirectUrl);
+      const checkoutUrl = await createTrialCheckoutSession(clerkId, user.email, redirectUrl);
   
-      if (sessionId) {
+      if (checkoutUrl) {
         return res.status(200).json({
           success: true,
-          sessionId: sessionId,
+          url: checkoutUrl, // Send the URL back to the frontend
           message: 'Checkout session created successfully'
         });
       } else {
