@@ -123,9 +123,9 @@ async function processEvent(event: Stripe.Event): Promise<boolean> {
                         break;
                     }
                     case 'customer.subscription.created':
-                        case 'customer.subscription.updated':
-                        case 'customer.subscription.pending_update_applied':
-                        case 'customer.subscription.pending_update_expired': {
+                    case 'customer.subscription.updated':
+                    case 'customer.subscription.pending_update_applied':
+                    case 'customer.subscription.pending_update_expired': {
                             // Handle other subscription events
                             const subscription = event.data.object as Stripe.Subscription;
                             const subscriptionCustomerId = subscription.customer as string;

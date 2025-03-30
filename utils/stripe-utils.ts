@@ -74,7 +74,11 @@ async function syncStripeDataToKV(customerId: string): Promise<STRIPE_SUB_CACHE>
   }
 }
 
-export async function startProPlanTrial(userId: string, email: string): Promise<boolean> {
+export async function startProPlanTrial(
+  userId: string, 
+  email: string, 
+  paymentMethodId: string // Add this parameter
+): Promise<boolean> {
   try {
     // Find the Pro plan to get the Stripe Price ID
     const proPlan = await PlanModel.findOne({ name: 'Pro' });
@@ -106,11 +110,24 @@ export async function startProPlanTrial(userId: string, email: string): Promise<
       await user.save();
     }
 
+    // Attach the payment method to the customer
+    await stripe.paymentMethods.attach(paymentMethodId, {
+      customer: customerId,
+    });
+    
+    // Set as the default payment method
+    await stripe.customers.update(customerId, {
+      invoice_settings: {
+        default_payment_method: paymentMethodId,
+      },
+    });
+
     // Create a subscription with a trial period
     const subscription = await stripe.subscriptions.create({
       customer: customerId,
       items: [{ price: proPlan.stripePriceId }],
       trial_period_days: 7,
+      default_payment_method: paymentMethodId,
       metadata: {
         userId: userId
       }
@@ -121,7 +138,7 @@ export async function startProPlanTrial(userId: string, email: string): Promise<
     ? new Date(subscription.trial_end * 1000) 
     : new Date(subscription.current_period_end * 1000); // Fallback to period end
     
-    await UserModel.findByIdAndUpdate(user._id, { // Find and Update by _id
+    await UserModel.findByIdAndUpdate(user._id, {
       planId: proPlan._id,
       subscriptionStatus: 'trialing',
       subscriptionId: subscription.id,
@@ -153,6 +170,70 @@ export async function cancelSubscription(subscriptionId: string): Promise<boolea
   } catch (error) {
     console.error('Error cancelling subscription:', error);
     return false;
+  }
+}
+
+export async function createTrialCheckoutSession(
+  userId: string,
+  email: string,
+  redirectUrl: string
+): Promise<string | null> {
+  try {
+    // Find the Pro plan to get the Stripe Price ID
+    const proPlan = await PlanModel.findOne({ name: 'Pro' });
+    if (!proPlan || !proPlan.stripePriceId) {
+      throw new Error('Pro plan not found or missing Stripe Price ID');
+    }
+
+    const user = await UserModel.findOne({ clerkId: userId });
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Create or retrieve a Stripe customer
+    let customerId = user.stripeCustomerId;
+    
+    if (!customerId) {
+      // Create a new customer in Stripe
+      const customer = await stripe.customers.create({
+        email: email,
+        metadata: {
+          userId: userId
+        }
+      });
+      
+      customerId = customer.id;
+      
+      // Save the Stripe customer ID to the user
+      user.stripeCustomerId = customerId;
+      await user.save();
+    }
+
+    // Create a checkout session with trial information
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'subscription',
+      customer: customerId,
+      line_items: [
+        {
+          price: proPlan.stripePriceId,
+          quantity: 1
+        }
+      ],
+      subscription_data: {
+        trial_period_days: 7,
+        metadata: {
+          userId: userId
+        }
+      },
+      success_url: `${redirectUrl}?success=true&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${redirectUrl}?canceled=true`
+    });
+
+    return session.id;
+  } catch (error) {
+    console.error('Error creating trial checkout session:', error);
+    return null;
   }
 }
 
