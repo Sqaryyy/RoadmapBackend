@@ -26,7 +26,7 @@ router.put('/:id', requireAuth(), updateUser);
 router.delete('/:id', requireAuth(), deleteUser);
 
 // Stripe Subscription Routes
-router.post('/create-subscription', createSubscription); // Route to create a Stripe Checkout Session
+router.post('/create-subscription', requireAuth(),createSubscription); // Route to create a Stripe Checkout Session
 router.get('/success', requireAuth(), success); // Route for successful subscription
 
 // Topic Limits Routes

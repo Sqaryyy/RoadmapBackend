@@ -221,7 +221,7 @@ export async function createTrialCheckoutSession(
         }
       ],
       subscription_data: {
-        trial_period_days: 7,
+        trial_period_days: 30,
         metadata: {
           userId: userId
         }
