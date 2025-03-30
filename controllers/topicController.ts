@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { TopicModel } from '../models/Topic';
 import { Topic } from '../interfaces/ITopic';
+import { TaskModel } from '../models/Task';
 
 // Create Topic
 export const createTopic = async (req: Request, res: Response) => {
@@ -15,14 +16,19 @@ export const createTopic = async (req: Request, res: Response) => {
     }
 };
 
-// Get Topic by ID
 export const getTopicById = async (req: Request, res: Response) => {
     try {
-        const topic = await TopicModel.findById(req.params.id).populate('tasks').populate('skillId');
+        // Fetch topic WITHOUT tasks populated
+        const topic = await TopicModel.findById(req.params.id).populate('skillId');
         if (!topic) {
             return res.status(404).json({ message: 'Topic not found' });
         }
-        res.status(200).json(topic);
+
+        // Fetch tasks separately based on topicId
+        const tasks = await TaskModel.find({ topicId: req.params.id });
+
+        // Merge tasks into response manually
+        res.status(200).json({ ...topic.toObject(), tasks });
     } catch (error: any) {
         console.error(error);
         res.status(500).json({ message: error.message });
