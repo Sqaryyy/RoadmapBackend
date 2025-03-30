@@ -6,13 +6,13 @@ import { ClerkRequest } from '../utils/userLimits';
 
 export async function startProTrial(req: ClerkRequest, res: Response) {
   try {
-    const userId = req.auth?.userId;
+    const clerkId = req.auth?.userId; // Clerk provides userId as the clerkId
 
-    if (!userId) {
+    if (!clerkId) {
       return res.status(401).json({ success: false, message: 'Unauthorized: User ID not found in auth context.' });
     }
 
-    const user = await UserModel.findById(userId);
+    const user = await UserModel.findOne({ clerkId: clerkId }); // Find by clerkId
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
@@ -25,7 +25,7 @@ export async function startProTrial(req: ClerkRequest, res: Response) {
       });
     }
 
-    const success = await startProPlanTrial(userId, user.email);
+    const success = await startProPlanTrial(clerkId, user.email);
 
     if (success) {
       return res.status(200).json({
@@ -55,7 +55,7 @@ export async function cancelUserSubscription(req: ClerkRequest, res: Response) {
       return res.status(401).json({ success: false, message: 'Unauthorized: User ID not found in auth context.' });
     }
 
-    const user = await UserModel.findById(userId);
+    const user = await UserModel.findOne({ clerkId: userId }); 
     if (!user || !user.subscriptionId) {
       return res.status(404).json({
         success: false,
