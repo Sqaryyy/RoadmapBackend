@@ -91,105 +91,97 @@ async function processEvent(event: Stripe.Event): Promise<boolean> {
             case 'invoice.payment_action_required':
                 await handlePaymentActionRequired(event);
                 break;
-            case 'invoice.paid':
-            case 'invoice.payment_succeeded': {
-                // Handle successful payments
-                const invoice = event.data.object as Stripe.Invoice;
-                const invoiceCustomerId = invoice.customer as string;
-                
-                // Sync subscription data
-                await syncStripeDataToKV(invoiceCustomerId);
-                
-                // Update user payment status to successful
-                try {
-                    const customer = await stripe.customers.retrieve(invoiceCustomerId);
-                    if (isCustomerWithMetadata(customer)) {
-                        const clerkId = customer.metadata.userId;
-                        const user = await UserModel.findOne({ clerkId });
-                        if (user) {
-                            // Clear payment issues if you've added that field
-                            if ('paymentIssue' in user) {
-                                user.paymentIssue = false;
-                            }
-                            
-                            // Update subscription status if needed
-                            if ('subscriptionStatus' in user) {
-                                user.subscriptionStatus = 'active';
-                            }
-                            
-                            user.updatedAt = new Date();
-                            await user.save();
-                            await redisClient.set(`user:${clerkId}`, JSON.stringify(user));
-                        }
-                    }
-                } catch (err) {
-                    console.error("[STRIPE HOOK] Error updating user after successful payment:", err);
-                }
-                break;
-            }
-            case 'customer.subscription.created':
-            case 'customer.subscription.updated':
-            case 'customer.subscription.pending_update_applied':
-            case 'customer.subscription.pending_update_expired': {
-                // Handle other subscription events
-                const subscription = event.data.object as Stripe.Subscription;
-                const subscriptionCustomerId = subscription.customer as string;
-
-                if (typeof subscriptionCustomerId !== 'string') {
-                    console.error(`[STRIPE HOOK] ID isn't string.\nEvent type: ${event.type}\nEvent data:`, event.data.object);
-                    return false;
-                }
-
-                await syncStripeDataToKV(subscriptionCustomerId);
-                
-                // For subscription.created and subscription.updated, ensure user has Pro plan
-                if (event.type === 'customer.subscription.created' || event.type === 'customer.subscription.updated') {
-                    try {
-                        const status = subscription.status;
-                        
-                        // Only proceed for active or trialing subscriptions
-                        if (status === 'active' || status === 'trialing') {
-                            const customer = await stripe.customers.retrieve(subscriptionCustomerId);
+                case 'invoice.paid':
+                    case 'invoice.payment_succeeded': {
+                        // Handle successful payments
+                        const invoice = event.data.object as Stripe.Invoice;
+                        const invoiceCustomerId = invoice.customer as string;
+                    
+                        // Sync subscription data
+                        await syncStripeDataToKV(invoiceCustomerId);
+                    
+                        // Update user payment status to successful
+                        try {
+                            const customer = await stripe.customers.retrieve(invoiceCustomerId);
                             if (isCustomerWithMetadata(customer)) {
                                 const clerkId = customer.metadata.userId;
                                 const user = await UserModel.findOne({ clerkId });
-                                
                                 if (user) {
-                                    // Ensure Pro plan is applied
-                                    const proPlan = await PlanModel.findOne({ name: "Pro" });
-                                    if (proPlan && proPlan._id) {
-                                        user.planId = new Types.ObjectId(proPlan._id.toString());
+                                    // Clear payment issues if you've added that field
+                                    if ('paymentIssue' in user) {
+                                        user.paymentIssue = false;
                                     }
-                                    
-                                    // Update subscription status
-                                    if ('subscriptionStatus' in user) {
-                                        user.subscriptionStatus = status;
-                                    }
-                                    
-                                    // Store subscription ID if you've added that field
-                                    if ('subscriptionId' in user) {
-                                        user.subscriptionId = subscription.id;
-                                    }
-                                    
-                                    // Store period end date if you've added that field
-                                    if ('currentPeriodEnd' in user && subscription.current_period_end) {
-                                        user.currentPeriodEnd = new Date(subscription.current_period_end * 1000);
-                                    }
-                                    
+                    
                                     user.updatedAt = new Date();
                                     await user.save();
                                     await redisClient.set(`user:${clerkId}`, JSON.stringify(user));
-                                    
-                                    console.log(`[STRIPE HOOK] Updated subscription for user ${clerkId}`);
                                 }
                             }
+                        } catch (err) {
+                            console.error("[STRIPE HOOK] Error updating user after successful payment:", err);
                         }
-                    } catch (err) {
-                        console.error("[STRIPE HOOK] Error updating user after subscription change:", err);
+                        break;
                     }
-                }
-                break;
-            }
+                    case 'customer.subscription.created':
+                        case 'customer.subscription.updated':
+                        case 'customer.subscription.pending_update_applied':
+                        case 'customer.subscription.pending_update_expired': {
+                            // Handle other subscription events
+                            const subscription = event.data.object as Stripe.Subscription;
+                            const subscriptionCustomerId = subscription.customer as string;
+                        
+                            if (typeof subscriptionCustomerId !== 'string') {
+                                console.error(`[STRIPE HOOK] ID isn't string.\nEvent type: ${event.type}\nEvent data:`, event.data.object);
+                                return false;
+                            }
+                        
+                            await syncStripeDataToKV(subscriptionCustomerId);
+                        
+                            // For subscription.created and subscription.updated, ensure user has Pro plan
+                            if (event.type === 'customer.subscription.created' || event.type === 'customer.subscription.updated') {
+                                try {
+                                    const status = subscription.status;
+                        
+                                    const customer = await stripe.customers.retrieve(subscriptionCustomerId);
+                                    if (isCustomerWithMetadata(customer)) {
+                                        const clerkId = customer.metadata.userId;
+                                        const user = await UserModel.findOne({ clerkId });
+                        
+                                        if (user) {
+                                            // Ensure Pro plan is applied
+                                            const proPlan = await PlanModel.findOne({ name: "Pro" });
+                                            if (proPlan && proPlan._id) {
+                                                user.planId = new Types.ObjectId(proPlan._id.toString());
+                                            }
+                        
+                                            // Update subscription status based on Stripe's status
+                                            if ('subscriptionStatus' in user) {
+                                                user.subscriptionStatus = status; //  <-- SET IT DIRECTLY!
+                                            }
+                        
+                                            // Store subscription ID if you've added that field
+                                            if ('subscriptionId' in user) {
+                                                user.subscriptionId = subscription.id;
+                                            }
+                        
+                                            // Store period end date if you've added that field
+                                            if ('currentPeriodEnd' in user && subscription.current_period_end) {
+                                                user.currentPeriodEnd = new Date(subscription.current_period_end * 1000);
+                                            }
+                        
+                                            user.updatedAt = new Date();
+                                            await user.save();
+                                            await redisClient.set(`user:${clerkId}`, JSON.stringify(user));
+                        
+                                            console.log(`[STRIPE HOOK] Updated subscription for user ${clerkId} with status: ${status}`);
+                                        }
+                                    }
+                                } catch (err) {
+                                    console.error("[STRIPE HOOK] Error updating user after subscription change:", err);
+                                }
+                            }
+                            break;
+                        }
             case 'payment_intent.succeeded':
             case 'payment_intent.payment_failed':
             case 'payment_intent.canceled':

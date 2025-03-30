@@ -20,7 +20,7 @@ export interface User extends Document {
     lastTopicCreationReset: Date;
 
     stripeCustomerId?: string;
-    subscriptionStatus?: 'active' | 'paused' | 'canceled' | 'trialing' | 'past_due' | 'none';
+    subscriptionStatus?: 'active' | 'canceled' | 'past_due' | 'paused' | 'trialing' | 'unpaid' | 'incomplete' | 'incomplete_expired' | 'none';
     subscriptionId?: string;
     currentPeriodEnd?: Date;
     trialEndDate?: Date;
