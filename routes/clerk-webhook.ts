@@ -1,7 +1,7 @@
 import express, { Request, Response, Router } from 'express';
 import { Webhook, WebhookRequiredHeaders } from 'svix';
 import { UserModel } from '../models/User';
-import { PlanModel } from '../models/Plan'; // Import the PlanModel!
+import { PlanModel } from '../models/Plan';
 import mongoose from 'mongoose';
 
 const router: Router = express.Router();
@@ -58,19 +58,19 @@ router.post('/', async (req: Request, res: Response) => {
             const freePlan = await PlanModel.findOne({ name: 'Free' });
 
             if (!freePlan) {
-                console.error('Free plan not found in database.  Make sure you have seeded the database!');
-                return res.status(500).json({ error: 'Free plan not found' }); // Critical: Return an error
+                console.error('Free plan not found in database. Make sure you have seeded the database!');
+                return res.status(500).json({ error: 'Free plan not found' }); 
             }
 
             // 2. Determine the correct planId to use. Start with the Free plan.
             let planId: string | mongoose.Types.ObjectId; // Define the type of planId
 
-            //Correct implementation, freePlan._id is guarenteed to be an object ID
-            if (freePlan._id instanceof mongoose.Types.ObjectId){
+            // Correct implementation, freePlan._id is guaranteed to be an object ID
+            if (freePlan._id instanceof mongoose.Types.ObjectId) {
                 planId = freePlan._id;
             } else {
                 console.error(`Invalid plan ID. Free plan id is not an object id`);
-                return res.status(500).json({error: `Invalid Plan ID`})
+                return res.status(500).json({ error: `Invalid Plan ID` });
             }
 
             // 3. Override if the user has a specific planId in Clerk metadata
@@ -94,7 +94,7 @@ router.post('/', async (req: Request, res: Response) => {
                             planId = clerkPlanId; // Override with Clerk's planId
                         }
                         else {
-                            console.warn(`Plan ID ${clerkPlanId} from clerk does not exist in database. User will be assigned Free plan`)
+                            console.warn(`Plan ID ${clerkPlanId} from clerk does not exist in database. User will be assigned Free plan`);
                         }
                     }
                 }
@@ -122,6 +122,72 @@ router.post('/', async (req: Request, res: Response) => {
 
                 await newUser.save();
                 console.log('✅ User saved to DB with plan:', planId);
+            }
+        } 
+        else if (type === 'user.updated') {
+            // Find the user by clerkId
+            const user = await UserModel.findOne({ clerkId: data.id });
+            
+            if (!user) {
+                console.log('⚠️ User not found for update:', data.id);
+                return res.status(200).json({ success: true }); // Return 200 to acknowledge receipt
+            }
+            
+            // Update user fields if they exist in the payload
+            if (data.email_addresses && data.email_addresses[0]) {
+                user.email = data.email_addresses[0].email_address;
+            }
+            
+            if (data.first_name !== undefined) {
+                user.firstName = data.first_name;
+            }
+            
+            if (data.last_name !== undefined) {
+                user.lastName = data.last_name;
+            }
+            
+            if (data.image_url !== undefined) {
+                user.imageUrl = data.image_url;
+            }
+            
+            // Check for plan updates in Clerk metadata
+            try {
+                const clerkResponse = await fetch(`https://api.clerk.dev/v1/users/${data.id}`, {
+                    method: 'GET',
+                    headers: {
+                        Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (clerkResponse.ok) {
+                    const userData = await clerkResponse.json();
+                    if (userData.unsafe_metadata && userData.unsafe_metadata.planId) {
+                        const clerkPlanId = userData.unsafe_metadata.planId;
+                        
+                        // Verify the plan exists in our database
+                        const planExists = await PlanModel.exists({ _id: clerkPlanId });
+                        if (planExists && user.planId.toString() !== clerkPlanId) {
+                            user.planId = clerkPlanId;
+                            console.log(`✅ User ${data.id} plan updated to ${clerkPlanId}`);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching user metadata from Clerk:', error);
+            }
+            
+            await user.save();
+            console.log('✅ User updated in DB:', data.id);
+        }
+        else if (type === 'user.deleted') {
+            // Find and delete the user from our database
+            const result = await UserModel.deleteOne({ clerkId: data.id });
+            
+            if (result.deletedCount === 0) {
+                console.log('⚠️ User not found for deletion:', data.id);
+            } else {
+                console.log('✅ User deleted from DB:', data.id);
             }
         }
 

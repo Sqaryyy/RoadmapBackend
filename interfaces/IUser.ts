@@ -18,4 +18,12 @@ export interface User extends Document {
     planId: Types.ObjectId | string;  
     topicsCreatedThisMonth: number;
     lastTopicCreationReset: Date;
+
+    stripeCustomerId?: string;
+    subscriptionStatus?: 'active' | 'paused' | 'canceled' | 'trialing' | 'past_due' | 'none';
+    subscriptionId?: string;
+    currentPeriodEnd?: Date;
+    trialEndDate?: Date;
+    paymentIssue?: boolean;
+    lastFailedPayment?: Date;
 }

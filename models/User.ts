@@ -16,6 +16,15 @@ export const userSchema: Schema<User> = new Schema({
     planId: { type: Schema.Types.ObjectId, ref: 'Plan', required: true }, 
     topicsCreatedThisMonth: { type: Number, default: 0 }, 
     lastTopicCreationReset: { type: Date, default: Date.now },
+    skillsAddedThisMonth: { type: Number, default: 0 }, // Skills added per month
+    lastSkillAdditionReset: { type: Date, default: Date.now }, // Reset date for skills
+    stripeCustomerId: { type: String },
+    subscriptionStatus: { type: String, enum: ['active', 'paused', 'canceled', 'trialing', 'past_due', 'none'], default: 'none' },
+    subscriptionId: { type: String },
+    currentPeriodEnd: { type: Date },
+    trialEndDate: { type: Date },
+    paymentIssue: { type: Boolean, default: false },
+    lastFailedPayment: { type: Date },
 });
 
 export const UserModel = mongoose.model<User>('User', userSchema);
