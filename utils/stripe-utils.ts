@@ -129,6 +129,9 @@ export async function startProPlanTrial(userId: string, email: string): Promise<
       currentPeriodEnd: new Date(subscription.current_period_end * 1000)
     }, { new: true });
 
+    // Sync data to KV store after starting the trial
+    await syncStripeDataToKV(customerId);
+
     return true;
   } catch (error) {
     console.error('Error starting Pro plan trial with Stripe:', error);
@@ -138,7 +141,14 @@ export async function startProPlanTrial(userId: string, email: string): Promise<
 
 export async function cancelSubscription(subscriptionId: string): Promise<boolean> {
   try {
-    await stripe.subscriptions.cancel(subscriptionId);
+    const subscription = await stripe.subscriptions.cancel(subscriptionId);
+
+    // Sync data to KV store after cancelling the subscription
+    const user = await UserModel.findOne({ subscriptionId: subscriptionId });
+    if (user && user.stripeCustomerId) {
+      await syncStripeDataToKV(user.stripeCustomerId);
+    }
+
     return true;
   } catch (error) {
     console.error('Error cancelling subscription:', error);
@@ -147,3 +157,4 @@ export async function cancelSubscription(subscriptionId: string): Promise<boolea
 }
 
 export { syncStripeDataToKV };
+
