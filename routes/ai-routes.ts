@@ -507,38 +507,35 @@ router.post('/task-action', requireAuth(), async (req, res) => {
           topic_name: req.body.topic_name, // Prefer topic name from the body if exists
       };
 
-      const taskProperties = ["Task Name", "Objective", "Instructions", "Resources", "Estimated Time", "Completion Criteria"];
-      const basePrompt = `You are revising a task based on user feedback. The original task details: ${JSON.stringify(task)}. User data: ${JSON.stringify(skillData)}. The user indicated the task is "${action}".  Return a revised version of the task, making sure to ONLY provide updated data for the following properties: ${taskProperties.join(", ")}. Respond with a JSON object.`;
+      const taskProperties = ["name", "instructions", "resources", "completionCriteria", "estimatedTime"];
+      const basePrompt = `You are revising a task based on user feedback. The original task details: ${JSON.stringify(task)}. User data: ${JSON.stringify(skillData)}. The user indicated the task is "${action}".  Return a revised version of the task, making sure to ONLY provide updated data for the following properties using the exact names given: ${taskProperties.join(", ")}. Respond with a JSON object.`;
 
       switch (action) {
           case "Too easy":
               prompt = `${basePrompt} Make the revised task slightly more difficult.  Adhere to JSON format: {
-                  "Task Name": "Updated Task Name",
-                  "Objective": "Updated Objective",
-                  "Instructions": "Updated Instructions",
-                  "Resources": "Updated Resources",
-                  "Estimated Time": "Updated Estimated Time",
-                  "Completion Criteria": "Updated Completion Criteria"
+                  "name": "Updated Task Name",
+                  "instructions": "Updated Instructions",
+                  "resources": "Updated Resources",
+                  "completionCriteria": "Updated Completion Criteria",
+                  "estimatedTime": "Updated Estimated Time"
               }`;
               break;
           case "Too hard":
               prompt = `${basePrompt} Make the revised task slightly easier. Adhere to JSON format: {
-                  "Task Name": "Updated Task Name",
-                  "Objective": "Updated Objective",
-                  "Instructions": "Updated Instructions",
-                  "Resources": "Updated Resources",
-                  "Estimated Time": "Updated Estimated Time",
-                  "Completion Criteria": "Updated Completion Criteria"
+                  "name": "Updated Task Name",
+                  "instructions": "Updated Instructions",
+                  "resources": "Updated Resources",
+                  "completionCriteria": "Updated Completion Criteria",
+                  "estimatedTime": "Updated Estimated Time"
               }`;
               break;
           case "Dont understand":
               prompt = `${basePrompt} Re-explain the task in simpler terms. Adhere to JSON format: {
-                  "Task Name": "Updated Task Name",
-                  "Objective": "Updated Objective",
-                  "Instructions": "Updated Instructions",
-                  "Resources": "Updated Resources",
-                  "Estimated Time": "Updated Estimated Time",
-                  "Completion Criteria": "Updated Completion Criteria"
+                  "name": "Updated Task Name",
+                  "instructions": "Updated Instructions",
+                  "resources": "Updated Resources",
+                  "completionCriteria": "Updated Completion Criteria",
+                  "estimatedTime": "Updated Estimated Time"
               }`;
               break;
           default:
