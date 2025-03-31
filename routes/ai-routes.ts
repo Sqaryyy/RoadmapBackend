@@ -1,7 +1,8 @@
 import express from 'express';
 import OpenAI from 'openai';
 import { requireAuth } from '@clerk/express'
-import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { TaskModel } from '../models/Task';
 
 const router = express.Router();
 
@@ -474,6 +475,91 @@ router.post('/generate-learning-path2', requireAuth(), async (req, res) => {
     details: error instanceof Error ? error.message : 'Unknown error'
   });
 }
+});
+
+router.post('/task-action', requireAuth(), async (req, res) => {
+  try {
+      const { taskId, action } = req.body;
+
+      if (!taskId || !action) {
+          return res.status(400).json({ error: "Task ID and action are required." });
+      }
+
+      console.log(`Task Action: Task ID - ${taskId}, Action - ${action}`);
+
+      // Fetch the task from the database using the taskId
+      const task = await TaskModel.findById(taskId);
+
+      if (!task) {
+          return res.status(404).json({ error: "Task not found." });
+      }
+
+      let prompt = "";
+
+      // Extract skill data from the task (or request body if needed)
+      const skillData = {
+          goal: req.body.goal, // Prefer the goal in the req.body if it exists
+          skill: req.body.skill, // Prefer the skill in the req.body if it exists
+          available_time_per_week: req.body.available_time_per_week, // Prefer the time in the req.body if it exists
+          current_skill_level: req.body.current_skill_level,  // Prefer skill level in req.body if it exists
+          preferred_learning_style: req.body.preferred_learning_style, // Prefer learning style from the body, if exists
+          covered_topics: req.body.covered_topics, //Prefer covered topics from the body, if exists
+          topic_name: req.body.topic_name, // Prefer topic name from the body if exists
+      };
+
+      switch (action) {
+          case "Too easy":
+              prompt = `The user has indicated that task with ID ${taskId} is too easy. Based on the task details: ${JSON.stringify(task)}, and user data ${JSON.stringify(skillData)} please return a revised version of that task that is slightly more difficult. Only provide updated data for "Task Name", "Objective", "Instructions", "Resources", "Estimated Time", and "Completion Criteria" and adhere to JSON format: {
+                  "Task Name": "Updated Task Name",
+                  "Objective": "Updated Objective",
+                  "Instructions": "Updated Instructions",
+                  "Resources": "Updated Resources",
+                  "Estimated Time": "Updated Estimated Time",
+                  "Completion Criteria": "Updated Completion Criteria"
+              }`;
+              break;
+          case "Too hard":
+              prompt = `The user has indicated that task with ID ${taskId} is too hard. Based on the task details: ${JSON.stringify(task)}, and user data ${JSON.stringify(skillData)} return a revised version of that task that is slightly easier. Only provide updated data for "Task Name", "Objective", "Instructions", "Resources", "Estimated Time", and "Completion Criteria" and adhere to JSON format: {
+                  "Task Name": "Updated Task Name",
+                  "Objective": "Updated Objective",
+                  "Instructions": "Updated Instructions",
+                  "Resources": "Updated Resources",
+                  "Estimated Time": "Updated Estimated Time",
+                  "Completion Criteria": "Updated Completion Criteria"
+              }`;
+              break;
+          case "Dont understand":
+              prompt = `The user has indicated that task with ID ${taskId} is not understandable. Based on the task details: ${JSON.stringify(task)}, and user data ${JSON.stringify(skillData)} re-explain this task in simpler terms.  Only provide updated data for "Task Name", "Objective", "Instructions", "Resources", "Estimated Time", and "Completion Criteria" and adhere to JSON format: {
+                  "Task Name": "Updated Task Name",
+                  "Objective": "Updated Objective",
+                  "Instructions": "Updated Instructions",
+                  "Resources": "Updated Resources",
+                  "Estimated Time": "Updated Estimated Time",
+                  "Completion Criteria": "Updated Completion Criteria"
+              }`;
+              break;
+          default:
+              return res.status(400).json({ error: "Invalid action specified." });
+      }
+
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+      const result = await model.generateContent(prompt);
+      const response = await result.response;  // Get the final, simplified response
+      const rawResponse = response.text().trim();
+
+      try {
+          const taskUpdate = JSON.parse(rawResponse);
+          res.json({ taskUpdate });
+      } catch (parseError: any) {
+          console.error("Error parsing JSON response:", parseError);
+          console.error("Raw response text:", rawResponse);
+          return res.status(500).json({ error: "Failed to parse JSON response from Gemini.", details: parseError.message });
+      }
+
+  } catch (error) {
+      console.error("Error processing task action:", error);
+      res.status(500).json({ error: "Failed to process task action.", details: error instanceof Error ? error.message : 'Unknown error' });
+  }
 });
 
 export default router;
