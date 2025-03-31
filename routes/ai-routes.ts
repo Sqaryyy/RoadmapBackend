@@ -433,6 +433,7 @@ router.post('/generate-learning-path2', requireAuth(), async (req, res) => {
 
     const result = await model.generateContent(prompt);
     const response = await result.response;  // Get the final, simplified response
+    console.log(response);
     const rawResponse = response.text().trim();
 
 
