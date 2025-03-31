@@ -87,3 +87,23 @@ export const markSkillAsCompleted = async (req: Request, res: Response) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+// Mark Skill as Incomplete
+export const markSkillAsIncomplete = async (req: Request, res: Response) => {
+    try {
+        const skill = await SkillModel.findByIdAndUpdate(
+            req.params.id,
+            { isCompleted: false, updatedAt: Date.now() }, // Update the completion status and update timestamp
+            { new: true } // Return the updated skill
+        );
+
+        if (!skill) {
+            return res.status(404).json({ message: 'Skill not found' });
+        }
+
+        res.status(200).json(skill);
+    } catch (error: any) {
+        console.error(error);
+        res.status(500).json({ message: error.message });
+    }
+};
