@@ -507,9 +507,12 @@ router.post('/task-action', requireAuth(), async (req, res) => {
           topic_name: req.body.topic_name, // Prefer topic name from the body if exists
       };
 
+      const taskProperties = ["Task Name", "Objective", "Instructions", "Resources", "Estimated Time", "Completion Criteria"];
+      const basePrompt = `You are revising a task based on user feedback. The original task details: ${JSON.stringify(task)}. User data: ${JSON.stringify(skillData)}. The user indicated the task is "${action}".  Return a revised version of the task, making sure to ONLY provide updated data for the following properties: ${taskProperties.join(", ")}. Respond with a JSON object.`;
+
       switch (action) {
           case "Too easy":
-              prompt = `The user has indicated that task with ID ${taskId} is too easy. Based on the task details: ${JSON.stringify(task)}, and user data ${JSON.stringify(skillData)} please return a revised version of that task that is slightly more difficult. Only provide updated data for "Task Name", "Objective", "Instructions", "Resources", "Estimated Time", and "Completion Criteria" and adhere to JSON format: {
+              prompt = `${basePrompt} Make the revised task slightly more difficult.  Adhere to JSON format: {
                   "Task Name": "Updated Task Name",
                   "Objective": "Updated Objective",
                   "Instructions": "Updated Instructions",
@@ -519,7 +522,7 @@ router.post('/task-action', requireAuth(), async (req, res) => {
               }`;
               break;
           case "Too hard":
-              prompt = `The user has indicated that task with ID ${taskId} is too hard. Based on the task details: ${JSON.stringify(task)}, and user data ${JSON.stringify(skillData)} return a revised version of that task that is slightly easier. Only provide updated data for "Task Name", "Objective", "Instructions", "Resources", "Estimated Time", and "Completion Criteria" and adhere to JSON format: {
+              prompt = `${basePrompt} Make the revised task slightly easier. Adhere to JSON format: {
                   "Task Name": "Updated Task Name",
                   "Objective": "Updated Objective",
                   "Instructions": "Updated Instructions",
@@ -529,7 +532,7 @@ router.post('/task-action', requireAuth(), async (req, res) => {
               }`;
               break;
           case "Dont understand":
-              prompt = `The user has indicated that task with ID ${taskId} is not understandable. Based on the task details: ${JSON.stringify(task)}, and user data ${JSON.stringify(skillData)} re-explain this task in simpler terms.  Only provide updated data for "Task Name", "Objective", "Instructions", "Resources", "Estimated Time", and "Completion Criteria" and adhere to JSON format: {
+              prompt = `${basePrompt} Re-explain the task in simpler terms. Adhere to JSON format: {
                   "Task Name": "Updated Task Name",
                   "Objective": "Updated Objective",
                   "Instructions": "Updated Instructions",
@@ -544,12 +547,15 @@ router.post('/task-action', requireAuth(), async (req, res) => {
 
       const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
       const result = await model.generateContent(prompt);
-      const response = await result.response;  // Get the final, simplified response
+      const response = await result.response;
       const rawResponse = response.text().trim();
 
       try {
-          const taskUpdate = JSON.parse(rawResponse);
-          res.json({ taskUpdate });
+        // Remove any leading or trailing backticks and "json" labels
+        const cleanResponse = rawResponse.replace(/^```(json)?\n?/, '').replace(/```$/, '');
+
+        const taskUpdate = JSON.parse(cleanResponse);
+        res.json({ taskUpdate });
       } catch (parseError: any) {
           console.error("Error parsing JSON response:", parseError);
           console.error("Raw response text:", rawResponse);
@@ -561,5 +567,4 @@ router.post('/task-action', requireAuth(), async (req, res) => {
       res.status(500).json({ error: "Failed to process task action.", details: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
-
 export default router;
