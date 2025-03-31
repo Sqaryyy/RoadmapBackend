@@ -67,3 +67,23 @@ export const deleteSkill = async (req: Request, res: Response) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+// Mark Skill as Completed
+export const markSkillAsCompleted = async (req: Request, res: Response) => {
+    try {
+        const skill = await SkillModel.findByIdAndUpdate(
+            req.params.id,
+            { isCompleted: true, updatedAt: Date.now() }, // Update the completion status
+            { new: true } // Return the updated skill
+        );
+
+        if (!skill) {
+            return res.status(404).json({ message: 'Skill not found' });
+        }
+
+        res.status(200).json(skill);
+    } catch (error: any) {
+        console.error(error);
+        res.status(500).json({ message: error.message });
+    }
+};

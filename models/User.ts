@@ -25,6 +25,7 @@ export const userSchema: Schema<User> = new Schema({
     trialEndDate: { type: Date },
     paymentIssue: { type: Boolean, default: false },
     lastFailedPayment: { type: Date },
+    cancelAtPeriodEnd: { type: Boolean, default: false }
 });
 
 export const UserModel = mongoose.model<User>('User', userSchema);

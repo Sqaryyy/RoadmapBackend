@@ -9,6 +9,7 @@ export interface Skill {
     preferredLearningStyle: string;
     currentSkillLevel: string;
     goal: string;
+    isCompleted: boolean;
     availableTimePerWeek: string;
     createdAt?: Date;
     updatedAt?: Date;
