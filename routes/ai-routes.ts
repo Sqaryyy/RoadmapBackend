@@ -508,39 +508,39 @@ router.post('/task-action', requireAuth(), async (req, res) => {
       };
 
       const taskProperties = ["name", "instructions", "resources", "completionCriteria", "estimatedTime"];
-      const basePrompt = `You are revising a task based on user feedback. The original task details: ${JSON.stringify(task)}. User data: ${JSON.stringify(skillData)}. The user indicated the task is "${action}".  Return a revised version of the task, making sure to ONLY provide updated data for the following properties using the exact names given: ${taskProperties.join(", ")}. Respond with a JSON object.`;
+      const basePrompt = `You are revising a task based on user feedback. The original task details: ${JSON.stringify(task)}. User data: ${JSON.stringify(skillData)}. The user indicated the task is "${action}".  Return a revised version of the task, making sure to ONLY provide updated data for the following properties using the exact names given: ${taskProperties.join(", ")}. VERY IMPORTANT: "resources" MUST be an array of strings, not a single string. Respond with a JSON object.`;
 
-      switch (action) {
-          case "Too easy":
-              prompt = `${basePrompt} Make the revised task slightly more difficult.  Adhere to JSON format: {
-                  "name": "Updated Task Name",
-                  "instructions": "Updated Instructions",
-                  "resources": "Updated Resources",
-                  "completionCriteria": "Updated Completion Criteria",
-                  "estimatedTime": "Updated Estimated Time"
-              }`;
-              break;
-          case "Too hard":
-              prompt = `${basePrompt} Make the revised task slightly easier. Adhere to JSON format: {
-                  "name": "Updated Task Name",
-                  "instructions": "Updated Instructions",
-                  "resources": "Updated Resources",
-                  "completionCriteria": "Updated Completion Criteria",
-                  "estimatedTime": "Updated Estimated Time"
-              }`;
-              break;
-          case "Dont understand":
-              prompt = `${basePrompt} Re-explain the task in simpler terms. Adhere to JSON format: {
-                  "name": "Updated Task Name",
-                  "instructions": "Updated Instructions",
-                  "resources": "Updated Resources",
-                  "completionCriteria": "Updated Completion Criteria",
-                  "estimatedTime": "Updated Estimated Time"
-              }`;
-              break;
-          default:
-              return res.status(400).json({ error: "Invalid action specified." });
-      }
+switch (action) {
+    case "Too easy":
+        prompt = `${basePrompt} Make the revised task slightly more difficult. Adhere to JSON format: {
+            "name": "Updated Task Name",
+            "instructions": "Updated Instructions",
+            "resources": ["Resource 1", "Resource 2"],
+            "completionCriteria": "Updated Completion Criteria",
+            "estimatedTime": "Updated Estimated Time"
+        }`;
+        break;
+    case "Too hard":
+        prompt = `${basePrompt} Make the revised task slightly easier. Adhere to JSON format: {
+            "name": "Updated Task Name",
+            "instructions": "Updated Instructions",
+            "resources": ["Resource 1", "Resource 2"],
+            "completionCriteria": "Updated Completion Criteria",
+            "estimatedTime": "Updated Estimated Time"
+        }`;
+        break;
+    case "Dont understand":
+        prompt = `${basePrompt} Re-explain the task in simpler terms. Adhere to JSON format: {
+            "name": "Updated Task Name",
+            "instructions": "Updated Instructions",
+            "resources": ["Resource 1", "Resource 2"],
+            "completionCriteria": "Updated Completion Criteria",
+            "estimatedTime": "Updated Estimated Time"
+        }`;
+        break;
+    default:
+        return res.status(400).json({ error: "Invalid action specified." });
+}
 
       const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
       const result = await model.generateContent(prompt);
