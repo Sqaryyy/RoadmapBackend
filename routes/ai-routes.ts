@@ -341,8 +341,8 @@ router.post('/generate-learning-path2', requireAuth(), async (req, res) => {
 
     *   **Topic Name:** (The name of the learning topic. This topic should be a *logical next step* given the \`covered_topics\`.)
     *   **Tasks:** An array of learning tasks for that topic. Each task should be formatted as defined in the "Task Format" section of the AI Learning Guide. There should be 3-5 tasks, but this is a guideline.
-    *   **Learning Objectives:**
-    *   **Recommended Resources:**
+    *   **Learning Objectives:** A brief summary of what the user will learn.
+    *   **Recommended Resources:** A list of suggested books, articles, videos, websites, etc., with **actual links** wherever possible.
 
     ### **Key Rules for Tasks:**
 
@@ -393,9 +393,18 @@ router.post('/generate-learning-path2', requireAuth(), async (req, res) => {
         "Learn how to create hyperlinks to other pages"
       ],
       "recommended_resources": [
-        "HTML documentation",
-        "Online HTML tutorials",
-        "HTML validator"
+        {
+            "name": "MDN Web Docs - HTML",
+            "link": "https://developer.mozilla.org/en-US/docs/Web/HTML"
+        },
+        {
+            "name": "freeCodeCamp.org HTML Tutorial",
+            "link": "https://www.freecodecamp.org/news/html-tutorial/"
+        },
+        {
+            "name": "HTML Validator",
+            "link": "https://validator.w3.org/"
+        }
       ]
     }
     \`\`\`
@@ -411,6 +420,7 @@ router.post('/generate-learning-path2', requireAuth(), async (req, res) => {
     *   ALL tasks within "tasks" **MUST** adhere to the "Task Format" outlined in the "AI Learning Guide" section.
     *   Provide realistic and accurate time estimates for each task. Avoid inflating time estimates.
     *   **Only generate ONE TOPIC at a time.**
+    *   For the "Recommended Resources", strive to return **actual, valid URLs** wherever possible. Return the resource name and link as key/value pairs.
 
     ## User Input:
 
