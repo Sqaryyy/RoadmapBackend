@@ -519,7 +519,8 @@ router.post('/task-action', requireAuth(), async (req, res) => {
                   "instructions": "Updated Instructions",
                   "resources": ["Resource 1", "Resource 2"],
                   "completionCriteria": "Updated Completion Criteria",
-                  "estimatedTime": "Updated Estimated Time"
+                  "estimatedTime": "Updated Estimated Time",
+                  "objective": "${task.objective}"
               }`;
               break;
           case "Too hard":
@@ -528,7 +529,8 @@ router.post('/task-action', requireAuth(), async (req, res) => {
                   "instructions": "Updated Instructions",
                   "resources": ["Resource 1", "Resource 2"],
                   "completionCriteria": "Updated Completion Criteria",
-                  "estimatedTime": "Updated Estimated Time"
+                  "estimatedTime": "Updated Estimated Time",
+                  "objective": "${task.objective}"
               }`;
               break;
           case "Dont understand":
@@ -537,7 +539,8 @@ router.post('/task-action', requireAuth(), async (req, res) => {
                   "instructions": "Updated Instructions",
                   "resources": ["Resource 1", "Resource 2"],
                   "completionCriteria": "Updated Completion Criteria",
-                  "estimatedTime": "Updated Estimated Time"
+                  "estimatedTime": "Updated Estimated Time",
+                  "objective": "${task.objective}"
               }`;
               break;
           default:
@@ -553,8 +556,13 @@ router.post('/task-action', requireAuth(), async (req, res) => {
           // Remove any leading or trailing backticks and "json" labels
           const cleanResponse = rawResponse.replace(/^```(json)?\n?/, '').replace(/```$/, '');
 
-          const taskUpdate = JSON.parse(cleanResponse);
-          res.json({ taskUpdate, objective: task.objective }); // Return the objective from the task object
+          let taskUpdate = JSON.parse(cleanResponse);
+          //Post processing - If the task update doesn't have the objective property set it to the value from the database.
+          if(!taskUpdate.objective) {
+              taskUpdate.objective = task.objective;
+          }
+
+          res.json({ taskUpdate });
       } catch (parseError: any) {
           console.error("Error parsing JSON response:", parseError);
           console.error("Raw response text:", rawResponse);
