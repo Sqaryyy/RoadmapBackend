@@ -649,7 +649,10 @@ router.post('/topic-summary', requireAuth(), async (req, res) => {
       const textResult = response.text().trim();
 
       try {
-          const parsedResult = JSON.parse(textResult);
+        const cleanedResult = textResult
+        .replace(/^```json\s*/, '')  // Remove opening ```json
+        .replace(/\s*```$/, '');     // Remove closing ```
+          const parsedResult = JSON.parse(cleanedResult);
           res.json(parsedResult);
       } catch (parseError) {
           console.error("Error parsing JSON from Gemini:", parseError, "Raw Output:", textResult);
