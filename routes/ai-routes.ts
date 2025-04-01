@@ -595,26 +595,52 @@ router.post('/topic-summary', requireAuth(), async (req, res) => {
           : [];
 
       // Construct the prompt for Gemini.
-      const prompt = `You are an expert educator summarizing learning topics. Summarize the following topic based on its name, recommended resources, learning objectives, and the tasks associated with it.  Provide a concise summary suitable for a student who has completed the topic.  Focus on what the student has learned and what they should now be able to do.
+      const prompt = `You are an expert educator summarizing learning topics. Summarize the following topic based on its name, recommended resources, learning objectives, and the tasks associated with it.  Provide a concise summary suitable for a student who has completed the topic.  Focus on what the student has learned and what they should now be able to do. I will provide example outputs to guide you.
 
       Topic Name: ${topic.name}
       Recommended Resources: ${topic.recommendedResources.join(", ")}
       Learning Objectives: ${topic.learningObjectives.join(", ")}
       Tasks: ${JSON.stringify(taskDetails)}
 
-      Provide the response in the following JSON format:
+      Here are a few examples of how you should format your responses:
+
+      **Example 1:**
+
+      Topic Name: Introduction to Python
+      Recommended Resources: Python.org tutorial, Codecademy Python course
+      Learning Objectives: Understand basic syntax, learn variables and data types
+      Tasks: Install Python, write "Hello, world!" program
 
       \`\`\`json
       {
-        "summary": "Concise summary of the topic (approximately 50-75 words). Do not mention that you are an AI.  Do not explicitly state the topic's name at the beginning of the summary.  Instead, seamlessly weave the topic into the overall message.",
+        "summary": "You've now set up your Python environment and written your first program!  You understand the basic building blocks of Python syntax, including variables and data types. You can now start exploring more complex programming concepts.",
         "keyTakeaways": [
-          "Key takeaway 1 related to the topic. Be concise (around 10-15 words)",
-          "Key takeaway 2 related to the topic. Be concise (around 10-15 words)",
-          "Key takeaway 3 related to the topic. Be concise (around 10-15 words)"
+          "Installed Python successfully.",
+          "Wrote and executed a simple Python program.",
+          "Understood basic Python syntax and data types."
         ]
       }
       \`\`\`
-      Ensure the response is valid JSON and contains both the 'summary' and 'keyTakeaways' fields as described. The key takeaways should be short, concise, and directly relevant to what the student learned. Please make sure the summary is grammatically correct and well-written, and the takeaways are accurate. Focus on providing only 3 keyTakeaways.
+
+      **Example 2:**
+
+      Topic Name: Basic Chord Progressions on Guitar
+      Recommended Resources: JustinGuitar.com, YouTube tutorials
+      Learning Objectives: Learn common chord shapes, understand chord progressions
+      Tasks: Practice C-G-Am-F progression, play a simple song
+
+      \`\`\`json
+      {
+        "summary": "You've now taken your first steps in understanding basic chord progressions. You've gained familiarity with essential open chords and practiced transitioning smoothly between them. By applying a simple strumming pattern, you've learned how these chords work together to form the foundation of many songs. You can now play a simple song using these fundamental skills.",
+        "keyTakeaways": [
+          "Mastered open chords.",
+          "Improved chord transition speed and accuracy.",
+          "Can apply a strumming pattern to play a song."
+        ]
+      }
+      \`\`\`
+
+      Now, based on the information about the topic, provide your response in the same JSON format as the examples above.  Do not include any extra text or explanations outside the JSON structure. Just respond with the JSON.
   `;
 
       const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
