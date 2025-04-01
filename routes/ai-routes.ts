@@ -595,53 +595,55 @@ router.post('/topic-summary', requireAuth(), async (req, res) => {
           : [];
 
       // Construct the prompt for Gemini.
-      const prompt = `You are an expert educator summarizing learning topics. Summarize the following topic based on its name, recommended resources, learning objectives, and the tasks associated with it.  Provide a concise summary suitable for a student who has completed the topic.  Focus on what the student has learned and what they should now be able to do. I will provide example outputs to guide you.
+      const prompt = `You are an expert educator summarizing learning topics. Summarize the following topic based on its name, recommended resources, learning objectives, and the tasks associated with it. Provide a concise summary suitable for a student who has completed the topic. Focus on what the student should now be able to do. I will provide example outputs to guide you.
 
-      Topic Name: ${topic.name}
-      Recommended Resources: ${topic.recommendedResources.join(", ")}
-      Learning Objectives: ${topic.learningObjectives.join(", ")}
-      Tasks: ${JSON.stringify(taskDetails)}
+  Topic Name: ${topic.name}
+  Recommended Resources: ${topic.recommendedResources.join(", ")}
+  Learning Objectives: ${topic.learningObjectives.join(", ")}
+  Tasks: ${JSON.stringify(taskDetails)}
 
-      Here are a few examples of how you should format your responses:
+  Here are a few examples of how you should format your responses:
 
-      **Example 1:**
+  **Example 1:**
 
-      Topic Name: Introduction to Python
-      Recommended Resources: Python.org tutorial, Codecademy Python course
-      Learning Objectives: Understand basic syntax, learn variables and data types
-      Tasks: Install Python, write "Hello, world!" program
+  Topic Name: Introduction to Python
+  Recommended Resources: Python.org tutorial, Codecademy Python course
+  Learning Objectives: Understand basic syntax, learn variables and data types
+  Tasks: Install Python, write "Hello, world!" program
 
-      \`\`\`json
-      {
-        "summary": "You've now set up your Python environment and written your first program!  You understand the basic building blocks of Python syntax, including variables and data types. You can now start exploring more complex programming concepts.",
-        "keyTakeaways": [
-          "Installed Python successfully.",
-          "Wrote and executed a simple Python program.",
-          "Understood basic Python syntax and data types."
-        ]
-      }
-      \`\`\`
+  \`\`\`json
+  {
+    "summary": "Now that you've completed this introduction to Python, you should be able to set up a Python environment on your computer and write simple programs. You should understand the fundamental syntax of Python and how to work with different variables and data types. This foundation will allow you to start exploring more complex programming concepts.",
+    "keyTakeaways": [
+      "Set up and use a Python development environment.",
+      "Write and execute basic Python programs.",
+      "Apply Python syntax rules correctly.",
+      "Work with different variable types and basic data structures."
+    ]
+  }
+  \`\`\`
 
-      **Example 2:**
+  **Example 2:**
 
-      Topic Name: Basic Chord Progressions on Guitar
-      Recommended Resources: JustinGuitar.com, YouTube tutorials
-      Learning Objectives: Learn common chord shapes, understand chord progressions
-      Tasks: Practice C-G-Am-F progression, play a simple song
+  Topic Name: Basic Chord Progressions on Guitar
+  Recommended Resources: JustinGuitar.com, YouTube tutorials
+  Learning Objectives: Learn common chord shapes, understand chord progressions
+  Tasks: Practice C-G-Am-F progression, play a simple song
 
-      \`\`\`json
-      {
-        "summary": "You've now taken your first steps in understanding basic chord progressions. You've gained familiarity with essential open chords and practiced transitioning smoothly between them. By applying a simple strumming pattern, you've learned how these chords work together to form the foundation of many songs. You can now play a simple song using these fundamental skills.",
-        "keyTakeaways": [
-          "Mastered open chords.",
-          "Improved chord transition speed and accuracy.",
-          "Can apply a strumming pattern to play a song."
-        ]
-      }
-      \`\`\`
+  \`\`\`json
+  {
+    "summary": "Now that you've studied basic chord progressions, you should be able to form essential open chords correctly and transition between them smoothly. You should be able to apply a simple strumming pattern while changing chords and understand how these chords work together to form the foundation of many songs. With these skills, you should be able to play a simple song from start to finish.",
+    "keyTakeaways": [
+      "Form and play open chord shapes with proper finger positioning.",
+      "Transition between chords with increasing speed and accuracy.",
+      "Apply basic strumming patterns while changing chords.",
+      "Play a complete song using a simple chord progression."
+    ]
+  }
+  \`\`\`
 
-      Now, based on the information about the topic, provide your response in the same JSON format as the examples above.  Do not include any extra text or explanations outside the JSON structure. Just respond with the JSON.
-  `;
+  Now, based on the information about the topic, provide your response in the same JSON format as the examples above. Do not include any extra text or explanations outside the JSON structure. Just respond with the JSON.
+`;
 
       const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
       const result = await model.generateContent(prompt);
