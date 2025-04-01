@@ -3,6 +3,8 @@ import OpenAI from 'openai';
 import { requireAuth } from '@clerk/express'
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { TaskModel } from '../models/Task';
+import { TopicModel } from '../models/Topic';
+import { Task } from '../interfaces/ITask';
 
 const router = express.Router();
 
@@ -564,4 +566,74 @@ switch (action) {
       res.status(500).json({ error: "Failed to process task action.", details: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
+
+router.post('/topic-summary', requireAuth(), async (req, res) => {
+  try {
+      const { topicId } = req.body;
+
+      if (!topicId) {
+          return res.status(400).json({ error: "Topic ID is required." });
+      }
+
+      console.log(`Generating summary for Topic ID: ${topicId}`);
+
+      // Fetch the topic from the database, populating the tasks.
+      const topic = await TopicModel.findById(topicId).populate('tasks');
+
+      if (!topic) {
+          return res.status(404).json({ error: "Topic not found." });
+      }
+
+      // Extract task details for the prompt.  Handle the case where tasks might be null/undefined.
+      const taskDetails = topic.tasks
+          ? (topic.tasks as unknown as Task[]).map(task => ({
+              name: task.name,
+              instructions: task.instructions,
+              objective: task.objective, // Include the objective
+              estimatedTime: task.estimatedTime // include estimated time
+          }))
+          : [];
+
+      // Construct the prompt for Gemini.
+      const prompt = `You are an expert educator summarizing learning topics. Summarize the following topic based on its name, recommended resources, learning objectives, and the tasks associated with it.  Provide a concise summary suitable for a student who has completed the topic.  Focus on what the student has learned and what they should now be able to do.
+
+      Topic Name: ${topic.name}
+      Recommended Resources: ${topic.recommendedResources.join(", ")}
+      Learning Objectives: ${topic.learningObjectives.join(", ")}
+      Tasks: ${JSON.stringify(taskDetails)}
+
+      Provide the response in the following JSON format:
+
+      \`\`\`json
+      {
+        "summary": "Concise summary of the topic (approximately 50-75 words). Do not mention that you are an AI.  Do not explicitly state the topic's name at the beginning of the summary.  Instead, seamlessly weave the topic into the overall message.",
+        "keyTakeaways": [
+          "Key takeaway 1 related to the topic. Be concise (around 10-15 words)",
+          "Key takeaway 2 related to the topic. Be concise (around 10-15 words)",
+          "Key takeaway 3 related to the topic. Be concise (around 10-15 words)"
+        ]
+      }
+      \`\`\`
+      Ensure the response is valid JSON and contains both the 'summary' and 'keyTakeaways' fields as described. The key takeaways should be short, concise, and directly relevant to what the student learned. Please make sure the summary is grammatically correct and well-written, and the takeaways are accurate. Focus on providing only 3 keyTakeaways.
+  `;
+
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const textResult = response.text().trim();
+
+      try {
+          const parsedResult = JSON.parse(textResult);
+          res.json(parsedResult);
+      } catch (parseError) {
+          console.error("Error parsing JSON from Gemini:", parseError, "Raw Output:", textResult);
+          return res.status(500).json({ error: "Failed to parse the summary from the AI. Please review the AI's output.", details: parseError instanceof Error ? parseError.message : 'Unknown error', rawOutput: textResult });
+      }
+
+  } catch (error) {
+      console.error("Error generating topic summary:", error);
+      res.status(500).json({ error: "Failed to generate topic summary.", details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
 export default router;

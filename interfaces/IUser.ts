@@ -8,6 +8,8 @@ export interface User extends Document {
     imageUrl?: string;
     createdAt?: Date;
     updatedAt?: Date;
+    points:Number;
+    dayStreak:Number;
 
     // Skills tracking
     skills: Types.ObjectId[];
