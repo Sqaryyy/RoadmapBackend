@@ -510,39 +510,39 @@ router.post('/task-action', requireAuth(), async (req, res) => {
       };
 
       const taskProperties = ["name", "instructions", "resources", "completionCriteria", "estimatedTime"];
-      const basePrompt = `You are revising a task based on user feedback. The original task details: ${JSON.stringify(task)}. User data: ${JSON.stringify(skillData)}. The user indicated the task is "${action}".  Return a revised version of the task, making sure to ONLY provide updated data for the following properties using the exact names given: ${taskProperties.join(", ")}. VERY IMPORTANT: "resources" MUST be an array of strings, not a single string. Respond with a JSON object.`;
+      const basePrompt = `You are revising a task based on user feedback. The original task details: ${JSON.stringify(task)}. User data: ${JSON.stringify(skillData)}. The user indicated the task is "${action}".  The objective of this task is: "${task.objective}". Return a revised version of the task, making sure to ONLY provide updated data for the following properties using the exact names given: ${taskProperties.join(", ")}. VERY IMPORTANT: "resources" MUST be an array of strings, not a single string. Respond with a JSON object.`;
 
-switch (action) {
-    case "Too easy":
-        prompt = `${basePrompt} Make the revised task slightly more difficult. Adhere to JSON format: {
-            "name": "Updated Task Name",
-            "instructions": "Updated Instructions",
-            "resources": ["Resource 1", "Resource 2"],
-            "completionCriteria": "Updated Completion Criteria",
-            "estimatedTime": "Updated Estimated Time"
-        }`;
-        break;
-    case "Too hard":
-        prompt = `${basePrompt} Make the revised task slightly easier. Adhere to JSON format: {
-            "name": "Updated Task Name",
-            "instructions": "Updated Instructions",
-            "resources": ["Resource 1", "Resource 2"],
-            "completionCriteria": "Updated Completion Criteria",
-            "estimatedTime": "Updated Estimated Time"
-        }`;
-        break;
-    case "Dont understand":
-        prompt = `${basePrompt} Re-explain the task in simpler terms. Adhere to JSON format: {
-            "name": "Updated Task Name",
-            "instructions": "Updated Instructions",
-            "resources": ["Resource 1", "Resource 2"],
-            "completionCriteria": "Updated Completion Criteria",
-            "estimatedTime": "Updated Estimated Time"
-        }`;
-        break;
-    default:
-        return res.status(400).json({ error: "Invalid action specified." });
-}
+      switch (action) {
+          case "Too easy":
+              prompt = `${basePrompt} Make the revised task slightly more difficult. Adhere to JSON format: {
+                  "name": "Updated Task Name",
+                  "instructions": "Updated Instructions",
+                  "resources": ["Resource 1", "Resource 2"],
+                  "completionCriteria": "Updated Completion Criteria",
+                  "estimatedTime": "Updated Estimated Time"
+              }`;
+              break;
+          case "Too hard":
+              prompt = `${basePrompt} Make the revised task slightly easier. Adhere to JSON format: {
+                  "name": "Updated Task Name",
+                  "instructions": "Updated Instructions",
+                  "resources": ["Resource 1", "Resource 2"],
+                  "completionCriteria": "Updated Completion Criteria",
+                  "estimatedTime": "Updated Estimated Time"
+              }`;
+              break;
+          case "Dont understand":
+              prompt = `${basePrompt} Re-explain the task in simpler terms. Adhere to JSON format: {
+                  "name": "Updated Task Name",
+                  "instructions": "Updated Instructions",
+                  "resources": ["Resource 1", "Resource 2"],
+                  "completionCriteria": "Updated Completion Criteria",
+                  "estimatedTime": "Updated Estimated Time"
+              }`;
+              break;
+          default:
+              return res.status(400).json({ error: "Invalid action specified." });
+      }
 
       const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
       const result = await model.generateContent(prompt);
@@ -550,11 +550,11 @@ switch (action) {
       const rawResponse = response.text().trim();
 
       try {
-        // Remove any leading or trailing backticks and "json" labels
-        const cleanResponse = rawResponse.replace(/^```(json)?\n?/, '').replace(/```$/, '');
+          // Remove any leading or trailing backticks and "json" labels
+          const cleanResponse = rawResponse.replace(/^```(json)?\n?/, '').replace(/```$/, '');
 
-        const taskUpdate = JSON.parse(cleanResponse);
-        res.json({ taskUpdate });
+          const taskUpdate = JSON.parse(cleanResponse);
+          res.json({ taskUpdate, objective: task.objective }); // Return the objective from the task object
       } catch (parseError: any) {
           console.error("Error parsing JSON response:", parseError);
           console.error("Raw response text:", rawResponse);
@@ -574,8 +574,6 @@ router.post('/topic-summary', requireAuth(), async (req, res) => {
       if (!topicId) {
           return res.status(400).json({ error: "Topic ID is required." });
       }
-
-      console.log(`Generating summary for Topic ID: ${topicId}`);
 
       // Fetch the topic from the database, populating the tasks.
       const topic = await TopicModel.findById(topicId).populate('tasks');
