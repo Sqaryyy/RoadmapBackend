@@ -1,5 +1,7 @@
 import { Types } from 'mongoose';
 
+export type Difficulty = 'easy' | 'medium' | 'hard';
+
 export interface Task {
     _id: Types.ObjectId;
     topicId: Types.ObjectId; // Reference to Topic
@@ -10,6 +12,7 @@ export interface Task {
     objective: string;
     resources: string[];
     isCompleted: boolean; // Added completed status
+    difficulty: Difficulty; // Added difficulty level
     createdAt?: Date;
     updatedAt?: Date;
   }

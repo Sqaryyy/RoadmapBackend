@@ -5,8 +5,10 @@ import {
     getUserByClerkId,
     updateUser,
     deleteUser,
-    createSubscription,  // Import the createSubscription controller
-    success              // Import the success controller
+    createSubscription,
+    success,
+    addUserPoints,       // Import the new points controller
+    resetUserStreak      // Import the streak reset controller
 } from '../controllers/userController';
 import { requireAuth } from '@clerk/express';
 import { 
@@ -26,7 +28,7 @@ router.put('/:id', requireAuth(), updateUser);
 router.delete('/:id', requireAuth(), deleteUser);
 
 // Stripe Subscription Routes
-router.post('/create-subscription', requireAuth(),createSubscription); // Route to create a Stripe Checkout Session
+router.post('/create-subscription', requireAuth(), createSubscription); // Route to create a Stripe Checkout Session
 router.get('/success', requireAuth(), success); // Route for successful subscription
 
 // Topic Limits Routes
@@ -46,5 +48,9 @@ router.get('/check/can-add-skill', (req, res) => {
 router.post('/increment-skill-counter', requireAuth(), (req, res) => {
     return incrementSkillCounter(req as ClerkRequest, res);
 });
+
+// Points and Streak Routes
+router.post('/points/add', requireAuth(), addUserPoints);
+router.post('/streak/reset', requireAuth(), resetUserStreak);
 
 export default router;

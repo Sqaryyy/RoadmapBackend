@@ -2,11 +2,11 @@ import { Request, Response } from 'express';
 import { UserModel } from '../models/User';
 import { User } from '../interfaces/IUser';
 import Stripe from 'stripe';
-import { PlanModel } from '../models/Plan'; // Assuming you have your Plan model
+import { PlanModel } from '../models/Plan';
 import Redis from 'ioredis';
 import { syncStripeDataToKV } from '../utils/stripe-utils';
 
-const redisClient = new Redis(process.env.REDIS_URL!); // Ensure REDIS_URL is set
+const redisClient = new Redis(process.env.REDIS_URL!);
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 // Create User
@@ -43,6 +43,10 @@ export const getUserByClerkId = async (req: Request, res: Response) => {
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
+        
+        // Check if streak needs updating
+        await updateUserStreak(user);
+        
         res.status(200).json(user);
     } catch (error: any) {
         console.error(error);
@@ -78,15 +82,160 @@ export const deleteUser = async (req: Request, res: Response) => {
     }
 };
 
+// Helper function to check if streak has expired (called with each user access)
+const checkStreakExpiration = async (user: User) => {
+    try {
+        const lastPointsKey = `lastPoints:${user.clerkId}`;
+        const lastPointsTimestamp = await redisClient.get(lastPointsKey);
+
+        if (!lastPointsTimestamp) {
+            if (Number(user.dayStreak || 0) > 0) {
+                user.dayStreak = 0;
+                await user.save();
+            }
+            return;
+        }
+
+        const lastPointsTime = parseInt(lastPointsTimestamp);
+        const currentTime = Date.now();
+
+        // 24 hours in milliseconds = 86400000
+        if (currentTime - lastPointsTime > 86400000) {
+            // More than 24 hours have passed since last points, reset streak
+            user.dayStreak = 0;
+            await user.save();
+        }
+
+        return user;
+    } catch (error) {
+        console.error('Error checking streak expiration:', error);
+        throw error;
+    }
+};
+// Add Points to User
+export const addUserPoints = async (req: Request, res: Response) => {
+    try {
+        const { userId, points } = req.body;
+        
+        if (!userId || !points || isNaN(points) || points <= 0) {
+            return res.status(400).json({ message: 'Valid userId and positive points value are required' });
+        }
+        
+        const user = await UserModel.findOne({ clerkId: userId });
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        
+        // Update points
+        user.points = Number(user.points || 0) + Number(points);
+        
+        // Update streak based on points earned
+        await updateStreakWithPoints(user);
+        
+        const savedUser = await user.save();
+        res.status(200).json({ 
+            message: 'Points added successfully', 
+            user: { 
+                points: savedUser.points, 
+                dayStreak: savedUser.dayStreak 
+            } 
+        });
+    } catch (error: any) {
+        console.error('Error adding points:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// Helper function to update streak when points are earned
+const updateStreakWithPoints = async (user: User) => {
+    try {
+        const lastPointsKey = `lastPoints:${user.clerkId}`;
+        const lastPointsDateKey = `lastPointsDate:${user.clerkId}`;
+        
+        const lastPointsTimestamp = await redisClient.get(lastPointsKey);
+        const lastPointsDate = await redisClient.get(lastPointsDateKey);
+        
+        const now = new Date();
+        const today = now.toISOString().split('T')[0]; // YYYY-MM-DD format
+        
+        // Set current timestamp for streak expiration check
+        await redisClient.set(lastPointsKey, now.getTime().toString());
+        
+        if (!lastPointsDate) {
+            // First time getting points, set streak to 1
+            user.dayStreak = 1;
+            await redisClient.set(lastPointsDateKey, today);
+            return;
+        }
+        
+        if (lastPointsDate === today) {
+            // Already earned points today, don't increase streak
+            return;
+        }
+        
+        // Check if the last points date was yesterday
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+        
+        if (lastPointsDate === yesterdayStr) {
+            // Earned points yesterday, increment streak
+            user.dayStreak = Number(user.dayStreak || 0) + 1;
+        } else {
+            // Gap in points earning, reset streak to 1
+            user.dayStreak = 1;
+        }
+        
+        // Update the last points date
+        await redisClient.set(lastPointsDateKey, today);
+        
+        return user;
+    } catch (error) {
+        console.error('Error updating streak with points:', error);
+        throw error;
+    }
+};
+
+// Reset Streak for User
+export const resetUserStreak = async (req: Request, res: Response) => {
+    try {
+        const { userId } = req.body;
+        
+        if (!userId) {
+            return res.status(400).json({ message: 'UserId is required' });
+        }
+        
+        const user = await UserModel.findOne({ clerkId: userId });
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        
+        user.dayStreak = 0;
+        
+        // Clear redis keys for this user's streak
+        await redisClient.del(`lastPoints:${userId}`);
+        await redisClient.del(`lastPointsDate:${userId}`);
+        
+        const savedUser = await user.save();
+        
+        res.status(200).json({ 
+            message: 'Streak reset successfully', 
+            user: { dayStreak: savedUser.dayStreak } 
+        });
+    } catch (error: any) {
+        console.error('Error resetting streak:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
 export const createSubscription = async (req: Request, res: Response) => {
     try {
-        const { userId } = req.body; // Assuming you have user authentication (e.g., Clerk)
+        const { userId } = req.body;
         const proPlanName = "Pro";
 
         console.log("createSubscription: Received request for clerkId:", userId);
 
-        // Find the user by clerkId
-        const user = await UserModel.findOne({ clerkId: userId });  // Use findOne, not findById
+        const user = await UserModel.findOne({ clerkId: userId });
 
         if (!user) {
             console.log("createSubscription: User not found for clerkId:", userId);
@@ -105,44 +254,40 @@ export const createSubscription = async (req: Request, res: Response) => {
             return res.status(500).json({ message: 'Pro plan Stripe Price ID is not configured.' });
         }
 
-        // Get the stripeCustomerId from your KV store
-        let stripeCustomerId = await redisClient.get(`stripe:user:${userId}`); // Use clerkId
+        let stripeCustomerId = await redisClient.get(`stripe:user:${userId}`);
 
         console.log("createSubscription: Retrieved stripeCustomerId from Redis:", stripeCustomerId);
 
-        // Create a new Stripe customer if this user doesn't have one
         if (!stripeCustomerId) {
             console.log("createSubscription: stripeCustomerId not found, creating new customer");
             const newCustomer = await stripe.customers.create({
                 email: user.email,
                 metadata: {
-                    userId: userId, // Use clerkId
+                    userId: userId,
                 },
             });
 
-            // Store the relation between clerkId and stripeCustomerId in your KV
-            await redisClient.set(`stripe:user:${userId}`, newCustomer.id); // Use clerkId
+            await redisClient.set(`stripe:user:${userId}`, newCustomer.id);
             stripeCustomerId = newCustomer.id;
             console.log("createSubscription: Created new Stripe customer with ID:", stripeCustomerId);
         }
 
-        // ALWAYS create a checkout with a stripeCustomerId. They should enforce this.
         const session = await stripe.checkout.sessions.create({
             customer: stripeCustomerId,
             payment_method_types: ['card'],
             line_items: [
                 {
-                    price: proPlan.stripePriceId, // Use the Stripe Price ID from the Pro plan
+                    price: proPlan.stripePriceId,
                     quantity: 1,
                 },
             ],
             mode: 'subscription',
-            success_url: `${process.env.FRONTEND_URL}/success`, // No session id on success url
+            success_url: `${process.env.FRONTEND_URL}/success`,
             cancel_url: `${process.env.FRONTEND_URL}/cancel`,
         });
 
         console.log("createSubscription: Stripe Checkout session created with URL:", session.url);
-        res.status(200).json({ url: session.url }); // Send the Checkout URL to the client
+        res.status(200).json({ url: session.url });
         console.log("createSubscription: Response sent with status 200 and URL");
 
     } catch (error: any) {
@@ -178,3 +323,12 @@ export const success = async (req: Request, res: Response) => {
         res.status(500).json({ message: 'Error syncing Stripe data', error: (error as Error).message });
     }
 };
+
+// This function needs to be defined somewhere in your code
+async function updateUserStreak(user: User) {
+    try {
+        await checkStreakExpiration(user);
+    } catch (error) {
+        console.error('Error updating user streak:', error);
+    }
+}

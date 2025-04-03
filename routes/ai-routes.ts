@@ -296,7 +296,7 @@ router.post('/generate-learning-path2', requireAuth(), async (req, res) => {
 
     #### Task Format
 
-    Each task should follow this format:
+    Each task MUST follow this format EXACTLY, including all fields:
 
     **Task Name:** (Concise, clear name)
 
@@ -309,6 +309,8 @@ router.post('/generate-learning-path2', requireAuth(), async (req, res) => {
     **Estimated Time:** (Provide a *realistic* estimate of how long the task will take. Do not inflate time estimates. Be as accurate as possible.)
 
     **Completion Criteria:** (How the user will know they have successfully completed the task)
+
+    **Difficulty:** (Choose one: easy, medium, or hard)  <-- CRITICAL:  THIS MUST BE PRESENT
 
     #### Adaptive Feedback
 
@@ -343,7 +345,7 @@ router.post('/generate-learning-path2', requireAuth(), async (req, res) => {
     Your response **must** generate **one single learning topic** with its associated tasks. The output should have the following structure:
 
     *   **Topic Name:** (The name of the learning topic. This topic should be a *logical next step* given the \`covered_topics\`.)
-    *   **Tasks:** An array of learning tasks for that topic. Each task should be formatted as defined in the "Task Format" section of the AI Learning Guide. There should be 3-5 tasks, but this is a guideline.
+    *   **Tasks:** An array of learning tasks for that topic. Each task should be formatted as defined in the "Task Format" section of the AI Learning Guide. There should be 3-5 tasks, but this is a guideline.  **EACH TASK MUST INCLUDE A DIFFICULTY FIELD.**
     *   **Learning Objectives:**
     *   **Recommended Resources:**
 
@@ -356,6 +358,7 @@ router.post('/generate-learning-path2', requireAuth(), async (req, res) => {
     *   Ensure tasks are measurable and specific.
     *   Provide realistic time estimates for each task. Do not inflate the estimates.
     *   **Only generate ONE TOPIC at a time.**
+    *   **EACH TASK MUST INCLUDE A DIFFICULTY FIELD (easy, medium, or hard).**
 
     ---
 
@@ -371,7 +374,8 @@ router.post('/generate-learning-path2', requireAuth(), async (req, res) => {
           "Instructions": "Create a basic HTML document with the <html>, <head>, and <body> tags. Add a title to the <head> and a heading to the <body>.",
           "Resources": "HTML documentation, online HTML tutorials.",
           "Estimated Time": "1.5 hours",
-          "Completion Criteria": "Created a valid HTML document with a title and a heading."
+          "Completion Criteria": "Created a valid HTML document with a title and a heading.",
+          "Difficulty": "easy"
         },
         {
           "Task Name": "Add text and images to an HTML page",
@@ -379,7 +383,8 @@ router.post('/generate-learning-path2', requireAuth(), async (req, res) => {
           "Instructions": "Add paragraphs, headings, and images to your HTML page using the <p>, <h1>-<h6>, and <img> tags.",
           "Resources": "HTML documentation, online HTML tutorials.",
           "Estimated Time": "2 hours",
-          "Completion Criteria": "Added text and images to your HTML page with proper formatting."
+          "Completion Criteria": "Added text and images to your HTML page with proper formatting.",
+          "Difficulty": "medium"
         },
         {
           "Task Name": "Create links in HTML",
@@ -387,7 +392,8 @@ router.post('/generate-learning-path2', requireAuth(), async (req, res) => {
           "Instructions": "Add hyperlinks to your HTML page using the <a> tag. Link to both internal and external pages.",
           "Resources": "HTML documentation, online HTML tutorials.",
           "Estimated Time": "1.5 hours",
-          "Completion Criteria": "Created hyperlinks to other pages using the <a> tag."
+          "Completion Criteria": "Created hyperlinks to other pages using the <a> tag.",
+          "Difficulty": "medium"
         }
       ],
       "learning_objectives": [
@@ -414,6 +420,7 @@ router.post('/generate-learning-path2', requireAuth(), async (req, res) => {
     *   ALL tasks within "tasks" **MUST** adhere to the "Task Format" outlined in the "AI Learning Guide" section.
     *   Provide realistic and accurate time estimates for each task. Avoid inflating time estimates.
     *   **Only generate ONE TOPIC at a time.**
+    *   **EACH TASK MUST INCLUDE A DIFFICULTY FIELD (easy, medium, or hard).**
 
     ## User Input:
 
@@ -462,6 +469,22 @@ router.post('/generate-learning-path2', requireAuth(), async (req, res) => {
           console.error("No JSON-like structure found in response.");
           throw jsonError; // Re-throw original error
         }
+      }
+
+      // Validate task structure and difficulty
+      if (learningPath && learningPath.tasks && Array.isArray(learningPath.tasks)) {
+        (learningPath.tasks as Task[]).forEach((task: Task) => {
+          if (typeof task !== 'object' || task === null) {
+            throw new Error("Each task must be an object.");
+          }
+
+          const validDifficulties = ['easy', 'medium', 'hard'];
+          if (!task.difficulty || typeof task.difficulty !== 'string' || !validDifficulties.includes(task.difficulty.toLowerCase())) {
+            throw new Error(`Task is missing or has an invalid 'Difficulty' property.  Must be one of: ${validDifficulties.join(', ')}`);
+          }
+        });
+      } else {
+        throw new Error("Invalid learning path structure: missing 'tasks' array.");
       }
 
       res.json(learningPath);
