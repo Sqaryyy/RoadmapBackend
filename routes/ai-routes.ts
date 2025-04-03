@@ -444,43 +444,45 @@ router.post('/generate-learning-path2', requireAuth(), async (req, res) => {
  const rawResponse = response.text().trim();
  console.log("Raw model response:", rawResponse); // Log the raw response
 
+ let learningPath; // Declare learningPath outside the try block.
+
  try {
-   let learningPath;
-   try {
-     learningPath = JSON.parse(rawResponse);
-   } catch (jsonError) {
-     // ... (Your JSON parsing error handling here) ...
+   learningPath = JSON.parse(rawResponse);
+
+
+   // Validation only runs if JSON.parse succeeded
+   if (learningPath) {
+       if (!learningPath.tasks || !Array.isArray(learningPath.tasks)) {
+           throw new Error("Invalid learning path structure: missing 'tasks' array.");
+       }
+
+       const firstTask = learningPath.tasks[0];
+
+       console.log("First task object:", JSON.stringify(firstTask, null, 2)); // Log the entire task object
+
+       if (typeof firstTask !== 'object' || firstTask === null) {
+           throw new Error("The first task must be an object.");
+       }
+
+       if (!firstTask.hasOwnProperty('Difficulty')) {
+           throw new Error("The first task is missing the 'Difficulty' property.");
+       }
+
+       console.log("Difficulty value:", firstTask.Difficulty); // Log the value of Difficulty
+
+       const validDifficulties = ['easy', 'medium', 'hard'];
+       if (!firstTask.Difficulty || typeof firstTask.Difficulty !== 'string' || !validDifficulties.includes(firstTask.Difficulty.trim().toLowerCase())) {
+           throw new Error(`The first task is missing or has an invalid 'Difficulty' property.  Must be one of: ${validDifficulties.join(', ')}`);
+       }
+
+       res.json(learningPath); // Send the response ONLY if validation passes
    }
 
-   // Simplified validation for the first task
-   if (learningPath && learningPath.tasks && Array.isArray(learningPath.tasks)) {
-     const firstTask = learningPath.tasks[0];
-
-     console.log("First task object:", JSON.stringify(firstTask, null, 2)); // Log the entire task object
-
-     if (typeof firstTask !== 'object' || firstTask === null) {
-       throw new Error("The first task must be an object.");
-     }
-
-     if (!firstTask.hasOwnProperty('Difficulty')) {
-       throw new Error("The first task is missing the 'Difficulty' property.");
-     }
-
-     console.log("Difficulty value:", firstTask.Difficulty); // Log the value of Difficulty
-
-     const validDifficulties = ['easy', 'medium', 'hard'];
-     if (!firstTask.Difficulty || typeof firstTask.Difficulty !== 'string' || !validDifficulties.includes(firstTask.Difficulty.trim().toLowerCase())) {
-       throw new Error(`The first task is missing or has an invalid 'Difficulty' property.  Must be one of: ${validDifficulties.join(', ')}`);
-     }
-   } else {
-     throw new Error("Invalid learning path structure: missing 'tasks' array.");
-   }
-
-   res.json(learningPath);
  } catch (parseError: any) {
    console.error("Error parsing JSON response:", parseError);
    console.error("Raw response text:", rawResponse);
    res.status(500).json({ error: "Failed to parse JSON response", details: parseError.message, rawResponse: rawResponse });
+   return; // Ensure no further execution if parsing failed.
  }
 } catch (error) {
  console.error('Error generating learning path:', error);
