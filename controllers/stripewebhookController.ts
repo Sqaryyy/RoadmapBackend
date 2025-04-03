@@ -7,7 +7,13 @@ import { UserModel } from '../models/User';
 import { PlanModel } from '../models/Plan';
 import { redisClient } from '../server';
 import { Types } from 'mongoose';
+import { Resend } from 'resend';
+import { sendSubscriptionCanceledEmail,sendPaymentFailedEmail,sendSubscriptionPausedEmail,sendSubscriptionResumedEmail,sendTrialEndingSoonEmail } from '../utils/resend-utils';
+const resend = new Resend(process.env.RESEND_API_KEY);
 
+if (!process.env.RESEND_API_KEY) {
+    throw new Error("RESEND_API_KEY is not defined in the environment.");
+}
 dotenv.config();
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -316,7 +322,16 @@ async function handleSubscriptionPaused(event: Stripe.Event) {
         
         console.log(`[STRIPE HOOK] Marked subscription as paused for user ${clerkId}`);
         
-        // Optional: Send notification to user about paused subscription
+        if (user && user.email) {
+            const emailSent = await sendSubscriptionPausedEmail(user.email);
+            if (emailSent) {
+                console.log(`[STRIPE HOOK] Subscription paused email sent to ${user.email}`);
+            } else {
+                console.error(`[STRIPE HOOK] Failed to send subscription paused email to ${user.email}`);
+            }
+        } else {
+            console.warn("[STRIPE HOOK] User email not found, cannot send paused subscription email.");
+        }
     } catch (error) {
         console.error("[STRIPE HOOK] Error handling subscription pause:", error);
     }
@@ -366,7 +381,16 @@ async function handleSubscriptionResumed(event: Stripe.Event) {
         
         console.log(`[STRIPE HOOK] Marked subscription as resumed for user ${clerkId}`);
         
-        // Optional: Send welcome back notification to user
+        if (user && user.email) {
+            const emailSent = await sendSubscriptionResumedEmail(user.email);
+            if (emailSent) {
+                console.log(`[STRIPE HOOK] Subscription resumed email sent to ${user.email}`);
+            } else {
+                console.error(`[STRIPE HOOK] Failed to send subscription resumed email to ${user.email}`);
+            }
+        } else {
+            console.warn("[STRIPE HOOK] User email not found, cannot send resumed subscription email.");
+        }
     } catch (error) {
         console.error("[STRIPE HOOK] Error handling subscription resume:", error);
     }
@@ -407,8 +431,18 @@ async function handleTrialWillEnd(event: Stripe.Event) {
         
         console.log(`[STRIPE HOOK] Trial ending soon for user ${clerkId} at ${new Date(trialEnd! * 1000)}`);
         
-        // Send notification to user about trial ending soon (email, in-app, etc.)
-        // Your notification logic here...
+        if (user && user.email) {
+            const trialEnd = subscription.trial_end!; // trial_end should be defined at this point
+            const daysLeft = Math.ceil((trialEnd * 1000 - Date.now()) / (1000 * 60 * 60 * 24));
+            const emailSent = await sendTrialEndingSoonEmail(user.email, daysLeft);
+            if (emailSent) {
+                console.log(`[STRIPE HOOK] Trial ending soon email sent to ${user.email}`);
+            } else {
+                console.error(`[STRIPE HOOK] Failed to send trial ending soon email to ${user.email}`);
+            }
+        } else {
+            console.warn("[STRIPE HOOK] User email not found, cannot send trial ending soon email.");
+        }
     } catch (error) {
         console.error("[STRIPE HOOK] Error handling trial end notification:", error);
     }
@@ -457,8 +491,16 @@ async function handleInvoicePaymentFailed(event: Stripe.Event) {
         
         console.log(`[STRIPE HOOK] Payment failed for user ${clerkId}, invoice ID: ${invoice.id}`);
         
-        // Send payment failure notification to user
-        // Your notification logic here...
+        if (user && user.email) {
+            const emailSent = await sendPaymentFailedEmail(user.email);
+            if (emailSent) {
+                console.log(`[STRIPE HOOK] Payment failed email sent to ${user.email}`);
+            } else {
+                console.error(`[STRIPE HOOK] Failed to send payment failed email to ${user.email}`);
+            }
+        } else {
+            console.warn("[STRIPE HOOK] User email not found, cannot send payment failed email.");
+        }
     } catch (error) {
         console.error("[STRIPE HOOK] Error handling invoice payment failure:", error);
     }
@@ -545,7 +587,16 @@ async function handleSubscriptionDeleted(event: Stripe.Event) {
         
         console.log(`[STRIPE HOOK] Downgraded user ${clerkId} to Free plan after subscription ended`);
         
-        // Optional: Send notification to user about subscription cancellation
+        if (user && user.email) {
+            const emailSent = await sendSubscriptionCanceledEmail(user.email);
+            if (emailSent) {
+                console.log(`[STRIPE HOOK] Subscription canceled email sent to ${user.email}`);
+            } else {
+                console.error(`[STRIPE HOOK] Failed to send subscription canceled email to ${user.email}`);
+            }
+        } else {
+            console.warn("[STRIPE HOOK] User email not found, cannot send subscription canceled email.");
+        }
     } catch (error) {
         console.error("[STRIPE HOOK] Error handling subscription deletion:", error);
     }
