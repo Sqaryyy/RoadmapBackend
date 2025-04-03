@@ -272,7 +272,7 @@ router.post('/generate-learning-path2', requireAuth(), async (req, res) => {
 
     ## AI Learning Guide:
 
-    You are a highly intelligent AI designed to create personalized learning roadmaps to help users master a skill. Your goal is to break down the learning process into actionable tasks that align with the user’s learning style, prior knowledge, end goal, and already covered topics.
+    You are a highly intelligent AI designed to create personalized learning roadmaps to help users master a skill. Your goal is to break down the learning process into actionable tasks that align with the user's learning style, prior knowledge, end goal, and already covered topics.
 
     ### Guidelines for Task Generation:
 
@@ -422,6 +422,8 @@ router.post('/generate-learning-path2', requireAuth(), async (req, res) => {
     *   **Only generate ONE TOPIC at a time.**
     *   **EACH TASK MUST INCLUDE A DIFFICULTY FIELD (easy, medium, or hard).**
 
+    IMPORTANT: Your response must be ONLY the raw JSON object with no markdown formatting, code block markers, or explanatory text. Do not include \`\`\`json at the beginning or \`\`\` at the end of your response.
+
     ## User Input:
 
     \`\`\`json
@@ -436,61 +438,95 @@ router.post('/generate-learning-path2', requireAuth(), async (req, res) => {
     \`\`\`
     `;
 
- //  Choose your model (adjust based on availability and needs)
- const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    // Choose your model (adjust based on availability and needs)
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
- const result = await model.generateContent(prompt);
- const response = await result.response;
- const rawResponse = response.text().trim();
- console.log("Raw model response:", rawResponse); // Log the raw response
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const rawResponse = response.text().trim();
+    console.log("Raw model response:", rawResponse); // Log the raw response
 
- let learningPath; // Declare learningPath outside the try block.
+    let learningPath; // Declare learningPath outside the try block.
 
- try {
-   learningPath = JSON.parse(rawResponse);
+    // Before JSON parsing, clean the response:
+    let cleanedResponse = rawResponse;
 
+    // Remove markdown code block syntax if present
+    if (rawResponse.startsWith('```json') || rawResponse.startsWith('```')) {
+      cleanedResponse = rawResponse
+        .replace(/^```json\s*\n/, '') // Remove starting ```json
+        .replace(/^```\s*\n/, '')     // Remove starting ``` (if no language specified)
+        .replace(/\n```$/, '');       // Remove ending ```
+    }
 
-   // Validation only runs if JSON.parse succeeded
-   if (learningPath) {
-       if (!learningPath.tasks || !Array.isArray(learningPath.tasks)) {
-           throw new Error("Invalid learning path structure: missing 'tasks' array.");
-       }
+    console.log("Cleaned response:", cleanedResponse); // Log the cleaned response for debugging
 
-       const firstTask = learningPath.tasks[0];
+    try {
+      learningPath = JSON.parse(cleanedResponse);
 
-       console.log("First task object:", JSON.stringify(firstTask, null, 2)); // Log the entire task object
+      // Validation only runs if JSON.parse succeeded
+      if (learningPath) {
+        if (!learningPath.tasks || !Array.isArray(learningPath.tasks)) {
+          throw new Error("Invalid learning path structure: missing 'tasks' array.");
+        }
 
-       if (typeof firstTask !== 'object' || firstTask === null) {
-           throw new Error("The first task must be an object.");
-       }
+        // Normalize the case of property names for validation
+        const normalizeTaskProperties = (task: any): any => {
+          const normalized: any = {};
+          for (const key in task) {
+            // Convert property names to lowercase for consistent validation
+            const normalizedKey = key.toLowerCase();
+            normalized[normalizedKey] = task[key];
+          }
+          return normalized;
+        };
 
-       if (!firstTask.hasOwnProperty('Difficulty')) {
-           throw new Error("The first task is missing the 'Difficulty' property.");
-       }
+        // Validate each task
+        for (let i = 0; i < learningPath.tasks.length; i++) {
+          const task = learningPath.tasks[i];
+          const normalizedTask = normalizeTaskProperties(task);
 
-       console.log("Difficulty value:", firstTask.Difficulty); // Log the value of Difficulty
+          console.log(`Task ${i} normalized:`, JSON.stringify(normalizedTask, null, 2));
 
-       const validDifficulties = ['easy', 'medium', 'hard'];
-       if (!firstTask.Difficulty || typeof firstTask.Difficulty !== 'string' || !validDifficulties.includes(firstTask.Difficulty.trim().toLowerCase())) {
-           throw new Error(`The first task is missing or has an invalid 'Difficulty' property.  Must be one of: ${validDifficulties.join(', ')}`);
-       }
+          if (typeof task !== 'object' || task === null) {
+            throw new Error(`Task ${i} must be an object.`);
+          }
 
-       res.json(learningPath); // Send the response ONLY if validation passes
-   }
+          // Check for difficulty property (case-insensitive)
+          if (!normalizedTask.hasOwnProperty('difficulty')) {
+            throw new Error(`Task ${i} is missing the 'difficulty' property.`);
+          }
 
- } catch (parseError: any) {
-   console.error("Error parsing JSON response:", parseError);
-   console.error("Raw response text:", rawResponse);
-   res.status(500).json({ error: "Failed to parse JSON response", details: parseError.message, rawResponse: rawResponse });
-   return; // Ensure no further execution if parsing failed.
- }
-} catch (error) {
- console.error('Error generating learning path:', error);
- res.status(500).json({
-   error: 'Failed to generate learning path',
-   details: error instanceof Error ? error.message : 'Unknown error'
- });
-}
+          const validDifficulties = ['easy', 'medium', 'hard'];
+          const taskDifficulty = normalizedTask.difficulty?.toString().trim().toLowerCase();
+          
+          if (!taskDifficulty || !validDifficulties.includes(taskDifficulty)) {
+            throw new Error(`Task ${i} has an invalid 'difficulty' property. Must be one of: ${validDifficulties.join(', ')}`);
+          }
+        }
+
+        // Send the response ONLY if validation passes
+        res.json(learningPath);
+      }
+    } catch (parseError: any) {
+      console.error("Error parsing JSON response:", parseError);
+      console.error("Raw response text:", rawResponse);
+      console.error("Cleaned response text:", cleanedResponse);
+      res.status(500).json({ 
+        error: "Failed to parse JSON response", 
+        details: parseError.message, 
+        rawResponse: rawResponse,
+        cleanedResponse: cleanedResponse 
+      });
+      return; // Ensure no further execution if parsing failed.
+    }
+  } catch (error) {
+    console.error('Error generating learning path:', error);
+    res.status(500).json({
+      error: 'Failed to generate learning path',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 });
 
 router.post('/task-action', requireAuth(), async (req, res) => {
