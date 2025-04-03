@@ -436,69 +436,58 @@ router.post('/generate-learning-path2', requireAuth(), async (req, res) => {
     \`\`\`
     `;
 
+ //  Choose your model (adjust based on availability and needs)
+ const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
-    //  Choose your model (adjust based on availability and needs)
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' }); // Or 'gemini-2.0-pro' if you have access
+ const result = await model.generateContent(prompt);
+ const response = await result.response;
+ const rawResponse = response.text().trim();
+ console.log("Raw model response:", rawResponse); // Log the raw response
 
+ try {
+   let learningPath;
+   try {
+     learningPath = JSON.parse(rawResponse);
+   } catch (jsonError) {
+     // ... (Your JSON parsing error handling here) ...
+   }
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;  // Get the final, simplified response
-    const rawResponse = response.text().trim();
+   // Simplified validation for the first task
+   if (learningPath && learningPath.tasks && Array.isArray(learningPath.tasks)) {
+     const firstTask = learningPath.tasks[0];
 
+     console.log("First task object:", JSON.stringify(firstTask, null, 2)); // Log the entire task object
 
-    try {
-      // Strip any leading/trailing characters outside the JSON structure
+     if (typeof firstTask !== 'object' || firstTask === null) {
+       throw new Error("The first task must be an object.");
+     }
 
-      // Attempt to parse, but handle cases where JSON might be embedded in text
-      let learningPath;
-      try {
-        learningPath = JSON.parse(rawResponse);
-      } catch (jsonError) {
-        // Attempt to find the JSON within the string
-        const jsonMatch = rawResponse.match(/\{[\s\S]*\}/); // Regex to find JSON-like structure
+     if (!firstTask.hasOwnProperty('Difficulty')) {
+       throw new Error("The first task is missing the 'Difficulty' property.");
+     }
 
-        if (jsonMatch) {
-          try {
-            learningPath = JSON.parse(jsonMatch[0]); // Parse the extracted JSON
-          } catch (extractedJsonError) {
-            console.error("Error parsing extracted JSON:", extractedJsonError);
-            console.error("Extracted JSON string:", jsonMatch[0]);
-            throw extractedJsonError;
-          }
-        } else {
-          console.error("No JSON-like structure found in response.");
-          throw jsonError; // Re-throw original error
-        }
-      }
+     console.log("Difficulty value:", firstTask.Difficulty); // Log the value of Difficulty
 
-      // Validate task structure and difficulty
-      if (learningPath && learningPath.tasks && Array.isArray(learningPath.tasks)) {
-        (learningPath.tasks as Task[]).forEach((task: Task) => {
-          if (typeof task !== 'object' || task === null) {
-            throw new Error("Each task must be an object.");
-          }
+     const validDifficulties = ['easy', 'medium', 'hard'];
+     if (!firstTask.Difficulty || typeof firstTask.Difficulty !== 'string' || !validDifficulties.includes(firstTask.Difficulty.trim().toLowerCase())) {
+       throw new Error(`The first task is missing or has an invalid 'Difficulty' property.  Must be one of: ${validDifficulties.join(', ')}`);
+     }
+   } else {
+     throw new Error("Invalid learning path structure: missing 'tasks' array.");
+   }
 
-          const validDifficulties = ['easy', 'medium', 'hard'];
-          if (!task.difficulty || typeof task.difficulty !== 'string' || !validDifficulties.includes(task.difficulty.toLowerCase())) {
-            throw new Error(`Task is missing or has an invalid 'Difficulty' property.  Must be one of: ${validDifficulties.join(', ')}`);
-          }
-        });
-      } else {
-        throw new Error("Invalid learning path structure: missing 'tasks' array.");
-      }
-
-      res.json(learningPath);
-  } catch (parseError: any) { // Explicitly type parseError as any
-      console.error("Error parsing JSON response:", parseError);
-      console.error("Raw response text:", rawResponse); // Log the raw response
-      res.status(500).json({ error: "Failed to parse JSON response", details: parseError.message, rawResponse: rawResponse });
-  }
+   res.json(learningPath);
+ } catch (parseError: any) {
+   console.error("Error parsing JSON response:", parseError);
+   console.error("Raw response text:", rawResponse);
+   res.status(500).json({ error: "Failed to parse JSON response", details: parseError.message, rawResponse: rawResponse });
+ }
 } catch (error) {
-  console.error('Error generating learning path:', error);
-  res.status(500).json({
-    error: 'Failed to generate learning path',
-    details: error instanceof Error ? error.message : 'Unknown error'
-  });
+ console.error('Error generating learning path:', error);
+ res.status(500).json({
+   error: 'Failed to generate learning path',
+   details: error instanceof Error ? error.message : 'Unknown error'
+ });
 }
 });
 
