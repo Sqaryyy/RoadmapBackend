@@ -8,7 +8,7 @@ import { PlanModel } from '../models/Plan';
 import { redisClient } from '../server';
 import { Types } from 'mongoose';
 import { Resend } from 'resend';
-import { sendSubscriptionCanceledEmail,sendPaymentFailedEmail,sendSubscriptionPausedEmail,sendSubscriptionResumedEmail,sendTrialEndingSoonEmail } from '../utils/resend-utils';
+import { sendSubscriptionCanceledEmail,sendPaymentFailedEmail,sendSubscriptionPausedEmail,sendSubscriptionResumedEmail,sendTrialEndingSoonEmail,sendWelcomeEmail, sendSubscriptionCreatedEmail, sendSubscriptionUpdatedEmail, sendPaymentIntentSucceededEmail, sendPaymentIntentFailedEmail, sendPaymentIntentCanceledEmail } from '../utils/resend-utils';
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 if (!process.env.RESEND_API_KEY) {
@@ -78,6 +78,12 @@ async function processEvent(event: Stripe.Event): Promise<boolean> {
         switch (event.type) {
             case 'checkout.session.completed':
                 await handleCheckoutSessionCompleted(event);
+                break;
+            case 'customer.subscription.created':
+                await handleSubscriptionCreated(event);
+                break;
+            case 'customer.subscription.updated':
+                await handleSubscriptionUpdated(event);
                 break;
             case 'customer.subscription.paused':
                 await handleSubscriptionPaused(event);
@@ -184,6 +190,30 @@ async function processEvent(event: Stripe.Event): Promise<boolean> {
                                             await redisClient.set(`user:${clerkId}`, JSON.stringify(user));
                         
                                             console.log(`[STRIPE HOOK] Updated subscription for user ${clerkId} with status: ${status}`);
+                                            // Determine the event name for the email
+                                            let eventName = 'created';
+                                            if(event.type === 'customer.subscription.updated') {
+                                                eventName = 'updated';
+                                            }
+                        
+                                            if (user && user.email) {
+                                                // subscription.plan.name is not correct, we should get the plan name from our DB
+                                                const plan = await PlanModel.findById(user.planId);
+                                                if(plan) {
+                                                    const emailSent = await ( eventName === 'created' ? sendSubscriptionCreatedEmail(user.email, plan.name) : sendSubscriptionUpdatedEmail(user.email, 'previousPlan', plan.name));
+                                                    if (emailSent) {
+                                                        console.log(`[STRIPE HOOK] Subscription ${eventName} email sent to ${user.email}`);
+                                                    } else {
+                                                        console.error(`[STRIPE HOOK] Failed to send subscription ${eventName} email to ${user.email}`);
+                                                    }
+                                                } else {
+                                                    console.warn("[STRIPE HOOK] User plan not found, cannot send subscription email.");
+                                                }
+                        
+                                            } else {
+                                                console.warn("[STRIPE HOOK] User email not found, cannot send subscription email.");
+                                            }
+                        
                                         }
                                     }
                                 } catch (err) {
@@ -192,13 +222,84 @@ async function processEvent(event: Stripe.Event): Promise<boolean> {
                             }
                             break;
                         }
-            case 'payment_intent.succeeded':
-            case 'payment_intent.payment_failed':
-            case 'payment_intent.canceled':
-                // Payment intent events could be handled similarly to invoice events
-                // These are typically for one-time payments rather than subscriptions
-                console.log(`[STRIPE HOOK] Payment intent event: ${event.type}`);
+            case 'payment_intent.succeeded': {
+                const paymentIntent = event.data.object as Stripe.PaymentIntent;
+                const customerId = paymentIntent.customer as string;
+                try {
+                    const customer = await stripe.customers.retrieve(customerId);
+                    if (isCustomerWithMetadata(customer)) {
+                        const clerkId = customer.metadata.userId;
+                        const user = await UserModel.findOne({ clerkId });
+
+                        if (user && user.email) {
+                            // Convert amount from cents to dollars
+                            const amount = paymentIntent.amount / 100;
+                            const emailSent = await sendPaymentIntentSucceededEmail(user.email, amount);
+                            if (emailSent) {
+                                console.log(`[STRIPE HOOK] Payment intent succeeded email sent to ${user.email}`);
+                            } else {
+                                console.error(`[STRIPE HOOK] Failed to send payment intent succeeded email to ${user.email}`);
+                            }
+                        } else {
+                            console.warn("[STRIPE HOOK] User email not found, cannot send payment intent succeeded email.");
+                        }
+                    }
+                } catch (error) {
+                    console.error("[STRIPE HOOK] Error handling payment intent succeeded:", error);
+                }
                 break;
+            }
+            case 'payment_intent.payment_failed': {
+                const paymentIntent = event.data.object as Stripe.PaymentIntent;
+                const customerId = paymentIntent.customer as string;
+                try {
+                    const customer = await stripe.customers.retrieve(customerId);
+                    if (isCustomerWithMetadata(customer)) {
+                        const clerkId = customer.metadata.userId;
+                        const user = await UserModel.findOne({ clerkId });
+
+                        if (user && user.email) {
+                            const emailSent = await sendPaymentIntentFailedEmail(user.email);
+                            if (emailSent) {
+                                console.log(`[STRIPE HOOK] Payment intent failed email sent to ${user.email}`);
+                            } else {
+                                console.error(`[STRIPE HOOK] Failed to send payment intent failed email to ${user.email}`);
+                            }
+                        } else {
+                            console.warn("[STRIPE HOOK] User email not found, cannot send payment intent failed email.");
+                        }
+                    }
+                } catch (error) {
+                    console.error("[STRIPE HOOK] Error handling payment intent failed:", error);
+                }
+                break;
+            }
+            case 'payment_intent.canceled': {
+                const paymentIntent = event.data.object as Stripe.PaymentIntent;
+                const customerId = paymentIntent.customer as string;
+                try {
+                    const customer = await stripe.customers.retrieve(customerId);
+                    if (isCustomerWithMetadata(customer)) {
+                        const clerkId = customer.metadata.userId;
+                        const user = await UserModel.findOne({ clerkId });
+
+                        if (user && user.email) {
+                            const emailSent = await sendPaymentIntentCanceledEmail(user.email);
+                            if (emailSent) {
+                                console.log(`[STRIPE HOOK] Payment intent canceled email sent to ${user.email}`);
+                            } else {
+                                console.error(`[STRIPE HOOK] Failed to send payment intent canceled email to ${user.email}`);
+                            }
+                        } else {
+                            console.warn("[STRIPE HOOK] User email not found, cannot send payment intent canceled email.");
+                        }
+                    }
+                } catch (error) {
+                    console.error("[STRIPE HOOK] Error handling payment intent canceled:", error);
+                }
+                break;
+            }
+
             default:
                 console.log(`[STRIPE HOOK] Unhandled event type: ${event.type}`);
                 break;
@@ -271,6 +372,18 @@ async function handleCheckoutSessionCompleted(event: Stripe.Event) {
 
             console.log(`[STRIPE HOOK] Updated plan for user ${clerkId} to Pro`);
 
+            // Send welcome email
+            if (user && user.email) {
+                const emailSent = await sendWelcomeEmail(user.email);
+                if (emailSent) {
+                    console.log(`[STRIPE HOOK] Welcome email sent to ${user.email}`);
+                } else {
+                    console.error(`[STRIPE HOOK] Failed to send welcome email to ${user.email}`);
+                }
+            } else {
+                console.warn("[STRIPE HOOK] User email not found, cannot send welcome email.");
+            }
+
             // Sync
             await syncStripeDataToKV(stripeCustomerId);
         } else {
@@ -281,6 +394,88 @@ async function handleCheckoutSessionCompleted(event: Stripe.Event) {
 
     } catch (error: any) {
         console.error("[STRIPE HOOK] Error updating user plan after checkout:", error);
+    }
+}
+
+async function handleSubscriptionCreated(event: Stripe.Event) {
+    const subscription = event.data.object as Stripe.Subscription;
+    const customerId = subscription.customer as string;
+
+    try {
+        const customer = await stripe.customers.retrieve(customerId);
+        if (!isCustomerWithMetadata(customer)) {
+            console.error("[STRIPE HOOK] Customer is deleted or missing userId in metadata:", customer);
+            return;
+        }
+        const clerkId = customer.metadata.userId;
+        const user = await UserModel.findOne({ clerkId });
+
+        if (!user) {
+            console.error("[STRIPE HOOK] User not found for clerkId:", clerkId);
+            return;
+        }
+
+        if (user && user.email) {
+            // subscription.plan.name is not correct, we should get the plan name from our DB
+            const plan = await PlanModel.findById(user.planId);
+            if(plan) {
+                const emailSent = await sendSubscriptionCreatedEmail(user.email, plan.name);
+                if (emailSent) {
+                    console.log(`[STRIPE HOOK] Subscription created email sent to ${user.email}`);
+                } else {
+                    console.error(`[STRIPE HOOK] Failed to send subscription created email to ${user.email}`);
+                }
+            } else {
+                console.warn("[STRIPE HOOK] User plan not found, cannot send subscription created email.");
+            }
+
+        } else {
+            console.warn("[STRIPE HOOK] User email not found, cannot send subscription created email.");
+        }
+
+    } catch (error) {
+        console.error("[STRIPE HOOK] Error handling subscription created:", error);
+    }
+}
+
+async function handleSubscriptionUpdated(event: Stripe.Event) {
+    const subscription = event.data.object as Stripe.Subscription;
+    const customerId = subscription.customer as string;
+
+    try {
+        const customer = await stripe.customers.retrieve(customerId);
+        if (!isCustomerWithMetadata(customer)) {
+            console.error("[STRIPE HOOK] Customer is deleted or missing userId in metadata:", customer);
+            return;
+        }
+        const clerkId = customer.metadata.userId;
+        const user = await UserModel.findOne({ clerkId });
+
+        if (!user) {
+            console.error("[STRIPE HOOK] User not found for clerkId:", clerkId);
+            return;
+        }
+
+        if (user && user.email) {
+            // subscription.plan.name is not correct, we should get the plan name from our DB
+            const plan = await PlanModel.findById(user.planId);
+            if(plan) {
+                const emailSent = await sendSubscriptionUpdatedEmail(user.email, 'previousPlan', plan.name);
+                if (emailSent) {
+                    console.log(`[STRIPE HOOK] Subscription updated email sent to ${user.email}`);
+                } else {
+                    console.error(`[STRIPE HOOK] Failed to send subscription updated email to ${user.email}`);
+                }
+            } else {
+                console.warn("[STRIPE HOOK] User plan not found, cannot send subscription updated email.");
+            }
+
+        } else {
+            console.warn("[STRIPE HOOK] User email not found, cannot send subscription updated email.");
+        }
+
+    } catch (error) {
+        console.error("[STRIPE HOOK] Error handling subscription updated:", error);
     }
 }
 
@@ -510,7 +705,7 @@ async function handleInvoicePaymentFailed(event: Stripe.Event) {
 async function handlePaymentActionRequired(event: Stripe.Event) {
     const invoice = event.data.object as Stripe.Invoice;
     const customerId = invoice.customer as string;
-    
+
     try {
         // Find user associated with this invoice
         const customer = await stripe.customers.retrieve(customerId);
@@ -518,13 +713,24 @@ async function handlePaymentActionRequired(event: Stripe.Event) {
             console.error("[STRIPE HOOK] Customer is deleted or missing userId in metadata:", customer);
             return;
         }
-        
+
         const clerkId = customer.metadata.userId;
-        
+        const user = await UserModel.findOne({ clerkId });
+        if(!user) {
+            console.error("[STRIPE HOOK] User not found for clerkId:", clerkId);
+            return;
+        }
+
         console.log(`[STRIPE HOOK] Payment action required for user ${clerkId}, invoice ID: ${invoice.id}`);
-        
-        // Send notification to user about required action
-        // Your notification logic here...
+
+        // TODO:  Implement logic to notify the user (e.g., email, in-app notification)
+        //   about the required payment action.  Include a link to Stripe's secure
+        //   payment page to complete the payment.
+
+        // Example (replace with your notification logic):
+        // await sendPaymentActionRequiredEmail(user.email, invoice.hosted_invoice_url);
+        // console.log(`[STRIPE HOOK] Payment action required email sent to ${user.email}`);
+
     } catch (error) {
         console.error("[STRIPE HOOK] Error handling payment action required:", error);
     }
@@ -534,41 +740,41 @@ async function handlePaymentActionRequired(event: Stripe.Event) {
 async function handleSubscriptionDeleted(event: Stripe.Event) {
     const subscription = event.data.object as Stripe.Subscription;
     const customerId = subscription.customer as string;
-    
+
     try {
         // Sync Stripe data to KV storage
         await syncStripeDataToKV(customerId);
-        
+
         // Find user associated with this subscription
         const customer = await stripe.customers.retrieve(customerId);
         if (!isCustomerWithMetadata(customer)) {
             console.error("[STRIPE HOOK] Customer is deleted or missing userId in metadata:", customer);
             return;
         }
-        
+
         const clerkId = customer.metadata.userId;
         const user = await UserModel.findOne({ clerkId });
-        
+
         if (!user) {
             console.error("[STRIPE HOOK] User not found for clerkId:", clerkId);
             return;
         }
-        
+
         // Find free plan
         const freePlan = await PlanModel.findOne({ name: "Free" });
         if (!freePlan || !freePlan._id) {
             console.error("[STRIPE HOOK] Free plan not found");
             return;
         }
-        
+
         // Downgrade user to free plan
         user.planId = new Types.ObjectId(freePlan._id.toString());
-        
+
         // Update subscription status
         if ('subscriptionStatus' in user) {
             user.subscriptionStatus = 'canceled';
         }
-        
+
         // Reset the subscription ID if you've added that field
         if ('subscriptionId' in user) {
             user.subscriptionId = undefined;
@@ -578,15 +784,15 @@ async function handleSubscriptionDeleted(event: Stripe.Event) {
         if ('cancelAtPeriodEnd' in user) {
             user.cancelAtPeriodEnd = false;
         }
-        
+
         user.updatedAt = new Date();
         await user.save();
-        
+
         // Update Redis cache
         await redisClient.set(`user:${clerkId}`, JSON.stringify(user));
-        
+
         console.log(`[STRIPE HOOK] Downgraded user ${clerkId} to Free plan after subscription ended`);
-        
+
         if (user && user.email) {
             const emailSent = await sendSubscriptionCanceledEmail(user.email);
             if (emailSent) {
