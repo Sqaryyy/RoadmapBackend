@@ -5,8 +5,8 @@ import { body, validationResult } from 'express-validator';
 
 // Create Skill
 export const createSkill = [
-    body('title').isString().withMessage('Title must be a string').trim().notEmpty().withMessage('Title is required'),
-    body('description').isString().withMessage('Description must be a string').trim().notEmpty().withMessage('Description is required'),
+    body('title').optional().isString().withMessage('Title must be a string').trim(), // Use .optional()
+    body('description').optional().isString().withMessage('Description must be a string').trim(), // Use .optional()
     body('userId').isString().withMessage('userId must be a string').trim().notEmpty().withMessage('userId is required'),
     async (req: Request, res: Response) => {
         const errors = validationResult(req);
