@@ -7,13 +7,8 @@ import { UserModel } from '../models/User';
 import { PlanModel } from '../models/Plan';
 import { redisClient } from '../server';
 import { Types } from 'mongoose';
-import { Resend } from 'resend';
 import { sendSubscriptionCanceledEmail,sendPaymentFailedEmail,sendSubscriptionPausedEmail,sendSubscriptionResumedEmail,sendTrialEndingSoonEmail,sendWelcomeEmail, sendSubscriptionCreatedEmail, sendSubscriptionUpdatedEmail, sendPaymentIntentSucceededEmail, sendPaymentIntentFailedEmail, sendPaymentIntentCanceledEmail } from '../utils/resend-utils';
-const resend = new Resend(process.env.RESEND_API_KEY);
 
-if (!process.env.RESEND_API_KEY) {
-    throw new Error("RESEND_API_KEY is not defined in the environment.");
-}
 dotenv.config();
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);

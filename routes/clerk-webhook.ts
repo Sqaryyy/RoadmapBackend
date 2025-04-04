@@ -3,6 +3,8 @@ import { Webhook, WebhookRequiredHeaders } from 'svix';
 import { UserModel } from '../models/User';
 import { PlanModel } from '../models/Plan';
 import mongoose from 'mongoose';
+import { sendWelcomeEmail, sendSubscriptionCreatedEmail, sendSubscriptionUpdatedEmail, sendPaymentIntentSucceededEmail, sendPaymentIntentFailedEmail, sendPaymentIntentCanceledEmail, sendSubscriptionPausedEmail, sendSubscriptionResumedEmail, sendTrialEndingSoonEmail, sendPaymentFailedEmail, sendSubscriptionCanceledEmail } from '../utils/resend-utils'; // Import email functions
+
 
 const router: Router = express.Router();
 
@@ -122,6 +124,18 @@ router.post('/', async (req: Request, res: Response) => {
 
                 await newUser.save();
                 console.log('✅ User saved to DB with plan:', planId);
+
+                // Send welcome email upon user creation
+                if (newUser.email) {
+                    const welcomeEmailSent = await sendWelcomeEmail(newUser.email);
+                    if (welcomeEmailSent) {
+                        console.log(`📧 Welcome email sent to ${newUser.email}`);
+                    } else {
+                        console.error(`❌ Failed to send welcome email to ${newUser.email}`);
+                    }
+                } else {
+                    console.warn('⚠️  No email address found for new user.');
+                }
             }
         } 
         else if (type === 'user.updated') {
@@ -168,8 +182,23 @@ router.post('/', async (req: Request, res: Response) => {
                         // Verify the plan exists in our database
                         const planExists = await PlanModel.exists({ _id: clerkPlanId });
                         if (planExists && user.planId.toString() !== clerkPlanId) {
+                            const oldPlan = await PlanModel.findById(user.planId)
                             user.planId = clerkPlanId;
                             console.log(`✅ User ${data.id} plan updated to ${clerkPlanId}`);
+
+                            const newPlan = await PlanModel.findById(user.planId);
+
+                            if(user.email && oldPlan && newPlan) {
+                                const subscriptionUpdatedEmailSent = await sendSubscriptionUpdatedEmail(user.email, oldPlan.name, newPlan.name);
+                                if(subscriptionUpdatedEmailSent) {
+                                    console.log(`📧 Subscription updated email sent to ${user.email}`)
+                                }
+                                else {
+                                    console.error(`❌ Failed to send subscription updated email to ${user.email}`)
+                                }
+                            }
+
+
                         }
                     }
                 }
