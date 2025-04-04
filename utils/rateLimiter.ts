@@ -1,6 +1,6 @@
 // src/middleware/rateLimiter.ts
 import { RateLimiterRedis } from 'rate-limiter-flexible';
-import { redisClient } from '../server';
+import redisClient from './redisClient';
 import { Request, Response, NextFunction } from 'express';
 
 // General API rate limiter - more permissive

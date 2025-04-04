@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import routes from './routes'; // Import the main router
 import { clerkMiddleware } from '@clerk/express';
-import Redis from 'ioredis'; // Import Redis
+import redisClient from './utils/redisClient'; // ✅ Import from new redisClient file
 
 // Load environment variables
 dotenv.config();
@@ -12,18 +12,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Initialize Redis (before your routes)
-export const redisClient = new Redis(process.env.REDIS_URL!); // Ensure REDIS_URL is set
-
-// Test Redis connection (optional, but recommended)
-redisClient.ping()
-  .then(() => console.log('Connected to Redis'))
-  .catch((error) => console.error('Redis connection error:', error));
-
 // Define allowed origins
 const allowedOrigins = [
-  'https://roadmap.it.com', 
-  'http://localhost:3000',// Replace with your actual domain
+  'https://roadmap.it.com',
+  'http://localhost:3000', // Replace with your actual domain
 ];
 
 // CORS Options
@@ -40,26 +32,28 @@ const corsOptions = {
 
 // Middleware
 app.use(cors(corsOptions));
+app.use(express.json()); // Optional: Add body parser
 
-// Connect to MongoDB (replace with your actual connection string)
+// Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/your_database_name')
-  .then(() => console.log('Connected to MongoDB'))
-  .catch((error) => console.error('MongoDB connection error:', error));
+  .then(() => console.log('✅ Connected to MongoDB'))
+  .catch((error) => console.error('❌ MongoDB connection error:', error));
 
-  app.use(
-    clerkMiddleware({
-        publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
-        secretKey: process.env.CLERK_SECRET_KEY,
-    })
+// Clerk Middleware
+app.use(
+  clerkMiddleware({
+    publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
+    secretKey: process.env.CLERK_SECRET_KEY,
+  })
 );
 
-// Make redisClient available in req object
+// Attach redisClient to the request object if needed elsewhere
 app.use((req, res, next) => {
-    (req as any).redisClient = redisClient;
-    next();
+  (req as any).redisClient = redisClient;
+  next();
 });
 
-// Use the routes
+// Routes
 app.use('/api', routes);
 
 // Error handling middleware
@@ -70,7 +64,7 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 
 // Start the server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
 
 export default app;

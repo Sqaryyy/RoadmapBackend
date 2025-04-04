@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import { UserModel } from '../models/User';
 import { PlanModel } from '../models/Plan';
-import { redisClient } from '../server';
+import redisClient from '../utils/redisClient';
 import { Types } from 'mongoose';
 import { sendSubscriptionCanceledEmail,sendPaymentFailedEmail,sendSubscriptionPausedEmail,sendSubscriptionResumedEmail,sendTrialEndingSoonEmail,sendWelcomeEmail, sendSubscriptionCreatedEmail, sendSubscriptionUpdatedEmail, sendPaymentIntentSucceededEmail, sendPaymentIntentFailedEmail, sendPaymentIntentCanceledEmail } from '../utils/resend-utils';
 
