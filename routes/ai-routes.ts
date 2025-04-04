@@ -724,3 +724,17 @@ router.post('/topic-summary', requireAuth(), async (req, res) => {
 });
 
 export default router;
+
+/*const model = genAI.getGenerativeModel({
+  model: 'gemini-2.0-flash',
+  tools: [
+   {
+     googleSearchRetrieval: {
+       dynamicRetrievalConfig: {
+         mode: DynamicRetrievalMode.MODE_DYNAMIC,
+         dynamicThreshold: 0.1,
+       },
+     },
+   },
+  ],
+});*/

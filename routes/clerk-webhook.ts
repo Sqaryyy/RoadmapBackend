@@ -3,7 +3,7 @@ import { Webhook, WebhookRequiredHeaders } from 'svix';
 import { UserModel } from '../models/User';
 import { PlanModel } from '../models/Plan';
 import mongoose from 'mongoose';
-import { sendWelcomeEmail, sendSubscriptionCreatedEmail, sendSubscriptionUpdatedEmail, sendPaymentIntentSucceededEmail, sendPaymentIntentFailedEmail, sendPaymentIntentCanceledEmail, sendSubscriptionPausedEmail, sendSubscriptionResumedEmail, sendTrialEndingSoonEmail, sendPaymentFailedEmail, sendSubscriptionCanceledEmail } from '../utils/resend-utils'; // Import email functions
+import { sendWelcomeEmail, sendSubscriptionUpdatedEmail } from '../utils/resend-utils'; // Import email functions
 
 
 const router: Router = express.Router();
@@ -54,7 +54,18 @@ router.post('/', async (req: Request, res: Response) => {
 
     try {
         if (type === 'user.created') {
-            const existingUser = await UserModel.findOne({ clerkId: data.id });
+            let existingUser = await UserModel.findOne({ clerkId: data.id });
+
+            if (!existingUser && data.email_addresses?.[0]?.email_address) {
+                existingUser = await UserModel.findOne({ email: data.email_addresses[0].email_address });
+            
+                // If found by email but missing clerkId, update the doc
+                if (existingUser && !existingUser.clerkId) {
+                    existingUser.clerkId = data.id;
+                    await existingUser.save();
+                    console.log(`🔄 Existing user matched by email. Clerk ID updated to: ${data.id}`);
+                }
+            }            
 
             // 1. Get the Free plan from the database
             const freePlan = await PlanModel.findOne({ name: 'Free' });

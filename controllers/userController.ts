@@ -5,23 +5,34 @@ import Stripe from 'stripe';
 import { PlanModel } from '../models/Plan';
 import Redis from 'ioredis';
 import { syncStripeDataToKV } from '../utils/stripe-utils';
+import { body, validationResult } from 'express-validator';
 
 const redisClient = new Redis(process.env.REDIS_URL!);
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 // Create User
-export const createUser = async (req: Request, res: Response) => {
-    try {
-        const newUser: User = req.body;
-        const user = new UserModel(newUser);
-        const savedUser = await user.save();
-        res.status(201).json(savedUser);
-    } catch (error: any) {
-        console.error(error);
-        res.status(500).json({ message: error.message });
-    }
-};
+export const createUser = [
+    body('firstName').isString().withMessage('First name must be a string').trim().notEmpty().withMessage('First name is required'),
+    body('lastName').isString().withMessage('Last name must be a string').trim().notEmpty().withMessage('Last name is required'),
+    body('email').isEmail().withMessage('Invalid email address').normalizeEmail(),
+    body('clerkId').isString().withMessage('Clerk ID must be a string').trim().notEmpty().withMessage('Clerk ID is required'),
+    async (req: Request, res: Response) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() });
+        }
 
+        try {
+            const newUser: User = req.body;
+            const user = new UserModel(newUser);
+            const savedUser = await user.save();
+            res.status(201).json(savedUser);
+        } catch (error: any) {
+            console.error(error);
+            res.status(500).json({ message: error.message });
+        }
+    }
+];
 // Get User by ID
 export const getUserById = async (req: Request, res: Response) => {
     try {
@@ -55,18 +66,29 @@ export const getUserByClerkId = async (req: Request, res: Response) => {
 };
 
 // Update User
-export const updateUser = async (req: Request, res: Response) => {
-    try {
-        const updatedUser = await UserModel.findByIdAndUpdate(req.params.id, req.body, { new: true });
-        if (!updatedUser) {
-            return res.status(404).json({ message: 'User not found' });
+export const updateUser = [
+    body('firstName').optional().isString().withMessage('First name must be a string').trim(),
+    body('lastName').optional().isString().withMessage('Last name must be a string').trim(),
+    body('email').optional().isEmail().withMessage('Invalid email address').normalizeEmail(),
+    body('clerkId').optional().isString().withMessage('Clerk ID must be a string').trim(),
+    async (req: Request, res: Response) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() });
         }
-        res.status(200).json(updatedUser);
-    } catch (error: any) {
-        console.error(error);
-        res.status(500).json({ message: error.message });
+
+        try {
+            const updatedUser = await UserModel.findByIdAndUpdate(req.params.id, req.body, { new: true });
+            if (!updatedUser) {
+                return res.status(404).json({ message: 'User not found' });
+            }
+            res.status(200).json(updatedUser);
+        } catch (error: any) {
+            console.error(error);
+            res.status(500).json({ message: error.message });
+        }
     }
-};
+];
 
 // Delete User
 export const deleteUser = async (req: Request, res: Response) => {
@@ -228,74 +250,82 @@ export const resetUserStreak = async (req: Request, res: Response) => {
     }
 };
 
-export const createSubscription = async (req: Request, res: Response) => {
-    try {
-        const { userId } = req.body;
-        const proPlanName = "Pro";
-
-        console.log("createSubscription: Received request for clerkId:", userId);
-
-        const user = await UserModel.findOne({ clerkId: userId });
-
-        if (!user) {
-            console.log("createSubscription: User not found for clerkId:", userId);
-            return res.status(404).json({ message: 'User not found' });
+export const createSubscription = [
+    body('userId').isString().withMessage('User ID must be a string').trim().notEmpty().withMessage('User ID is required'),
+    async (req: Request, res: Response) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() });
         }
 
-        const proPlan = await PlanModel.findOne({ name: proPlanName });
+        try {
+            const { userId } = req.body;
+            const proPlanName = "Pro";
 
-        if (!proPlan) {
-            console.log("createSubscription: Pro plan not found");
-            return res.status(404).json({ message: 'Pro plan not found' });
-        }
+            console.log("createSubscription: Received request for clerkId:", userId);
 
-        if (!proPlan.stripePriceId) {
-            console.log("createSubscription: Pro plan Stripe Price ID not configured");
-            return res.status(500).json({ message: 'Pro plan Stripe Price ID is not configured.' });
-        }
+            const user = await UserModel.findOne({ clerkId: userId });
 
-        let stripeCustomerId = await redisClient.get(`stripe:user:${userId}`);
+            if (!user) {
+                console.log("createSubscription: User not found for clerkId:", userId);
+                return res.status(404).json({ message: 'User not found' });
+            }
 
-        console.log("createSubscription: Retrieved stripeCustomerId from Redis:", stripeCustomerId);
+            const proPlan = await PlanModel.findOne({ name: proPlanName });
 
-        if (!stripeCustomerId) {
-            console.log("createSubscription: stripeCustomerId not found, creating new customer");
-            const newCustomer = await stripe.customers.create({
-                email: user.email,
-                metadata: {
-                    userId: userId,
-                },
+            if (!proPlan) {
+                console.log("createSubscription: Pro plan not found");
+                return res.status(404).json({ message: 'Pro plan not found' });
+            }
+
+            if (!proPlan.stripePriceId) {
+                console.log("createSubscription: Pro plan Stripe Price ID not configured");
+                return res.status(500).json({ message: 'Pro plan Stripe Price ID is not configured.' });
+            }
+
+            let stripeCustomerId = await redisClient.get(`stripe:user:${userId}`);
+
+            console.log("createSubscription: Retrieved stripeCustomerId from Redis:", stripeCustomerId);
+
+            if (!stripeCustomerId) {
+                console.log("createSubscription: stripeCustomerId not found, creating new customer");
+                const newCustomer = await stripe.customers.create({
+                    email: user.email,
+                    metadata: {
+                        userId: userId,
+                    },
+                });
+
+                await redisClient.set(`stripe:user:${userId}`, newCustomer.id);
+                stripeCustomerId = newCustomer.id;
+                console.log("createSubscription: Created new Stripe customer with ID:", stripeCustomerId);
+            }
+
+            const session = await stripe.checkout.sessions.create({
+                customer: stripeCustomerId,
+                payment_method_types: ['card'],
+                line_items: [
+                    {
+                        price: proPlan.stripePriceId,
+                        quantity: 1,
+                    },
+                ],
+                mode: 'subscription',
+                success_url: `${process.env.FRONTEND_URL}/success`,
+                cancel_url: `${process.env.FRONTEND_URL}/cancel`,
             });
 
-            await redisClient.set(`stripe:user:${userId}`, newCustomer.id);
-            stripeCustomerId = newCustomer.id;
-            console.log("createSubscription: Created new Stripe customer with ID:", stripeCustomerId);
+            console.log("createSubscription: Stripe Checkout session created with URL:", session.url);
+            res.status(200).json({ url: session.url });
+            console.log("createSubscription: Response sent with status 200 and URL");
+
+        } catch (error: any) {
+            console.error('createSubscription: Error creating Stripe Checkout session:', error);
+            res.status(500).json({ message: 'Error creating Stripe Checkout session', error: (error as Error).message });
+            console.log("createSubscription: Error response sent with status 500");
         }
-
-        const session = await stripe.checkout.sessions.create({
-            customer: stripeCustomerId,
-            payment_method_types: ['card'],
-            line_items: [
-                {
-                    price: proPlan.stripePriceId,
-                    quantity: 1,
-                },
-            ],
-            mode: 'subscription',
-            success_url: `${process.env.FRONTEND_URL}/success`,
-            cancel_url: `${process.env.FRONTEND_URL}/cancel`,
-        });
-
-        console.log("createSubscription: Stripe Checkout session created with URL:", session.url);
-        res.status(200).json({ url: session.url });
-        console.log("createSubscription: Response sent with status 200 and URL");
-
-    } catch (error: any) {
-        console.error('createSubscription: Error creating Stripe Checkout session:', error);
-        res.status(500).json({ message: 'Error creating Stripe Checkout session', error: (error as Error).message });
-        console.log("createSubscription: Error response sent with status 500");
     }
-};
+];
 
 export const success = async (req: Request, res: Response) => {
     try {
