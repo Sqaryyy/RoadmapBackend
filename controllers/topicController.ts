@@ -3,12 +3,21 @@ import { TopicModel } from '../models/Topic';
 import { Topic } from '../interfaces/ITopic';
 import { TaskModel } from '../models/Task';
 import { body, validationResult } from 'express-validator';
+import mongoose from 'mongoose';
 
 // Create Topic
 export const createTopic = [
-    body('title').isString().withMessage('Title must be a string').trim().notEmpty().withMessage('Title is required'),
-    body('description').isString().withMessage('Description must be a string').trim().notEmpty().withMessage('Description is required'),
-    body('skillId').isString().withMessage('skillId must be a string').trim().notEmpty().withMessage('skillId is required'),
+    body('name').isString().withMessage('Name must be a string').trim().notEmpty().withMessage('Name is required'),
+    body('skillId').isString().withMessage('skillId must be a string').trim().notEmpty().withMessage('skillId is required').custom((value) => {
+        if (!mongoose.Types.ObjectId.isValid(value)) {
+            throw new Error('Invalid skillId');
+        }
+        return true;
+    }),
+    body('recommendedResources').optional().isArray().withMessage('recommendedResources must be an array of strings'),
+    body('recommendedResources.*').optional().isString().withMessage('Each recommendedResource must be a string'),
+    body('learningObjectives').optional().isArray().withMessage('learningObjectives must be an array of strings'),
+    body('learningObjectives.*').optional().isString().withMessage('Each learningObjective must be a string'),
     async (req: Request, res: Response) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
@@ -63,9 +72,17 @@ export const getTopicsBySkillId = async (req: Request, res: Response) => {
 
 // Update Topic
 export const updateTopic = [
-    body('title').optional().isString().withMessage('Title must be a string').trim(),
-    body('description').optional().isString().withMessage('Description must be a string').trim(),
-    body('skillId').optional().isString().withMessage('skillId must be a string').trim(),
+    body('name').optional().isString().withMessage('Name must be a string').trim(),
+    body('skillId').optional().isString().withMessage('skillId must be a string').trim().custom((value) => {
+        if (value && !mongoose.Types.ObjectId.isValid(value)) {
+            throw new Error('Invalid skillId');
+        }
+        return true;
+    }),
+    body('recommendedResources').optional().isArray().withMessage('recommendedResources must be an array of strings'),
+    body('recommendedResources.*').optional().isString().withMessage('Each recommendedResource must be a string'),
+    body('learningObjectives').optional().isArray().withMessage('learningObjectives must be an array of strings'),
+    body('learningObjectives.*').optional().isString().withMessage('Each learningObjective must be a string'),
     async (req: Request, res: Response) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
