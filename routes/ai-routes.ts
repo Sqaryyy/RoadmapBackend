@@ -560,11 +560,11 @@ router.post('/task-action', requireAuth(), async (req, res) => {
       };
 
       const taskProperties = ["name", "instructions", "resources", "completionCriteria", "estimatedTime", "difficulty"];
-      const basePrompt = `You are revising a task based on user feedback. The original task details: ${JSON.stringify(task)}. User data: ${JSON.stringify(skillData)}. The user indicated the task is "${action}".  The objective of this task is: "${task.objective}". Return a revised version of the task, making sure to ONLY provide updated data for the following properties using the exact names given: ${taskProperties.join(", ")}. VERY IMPORTANT: "resources" MUST be an array of strings, not a single string. Respond with a JSON object. The valid difficulty levels are "Easy", "Medium", and "Hard".`;
+      const basePrompt = `You are revising a task based on user feedback. The original task details: ${JSON.stringify(task)}. User data: ${JSON.stringify(skillData)}. The user indicated the task is "${action}".  The objective of this task is: "${task.objective}". Return a revised version of the task, making sure to ONLY provide updated data for the following properties using the exact names given: ${taskProperties.join(", ")}. VERY IMPORTANT: "resources" MUST be an array of strings, not a single string. Respond with a JSON object. The valid difficulty levels are "easy", "medium", and "hard".`;
 
       switch (action) {
           case "Too easy":
-              prompt = `${basePrompt} Make the revised task slightly more difficult. Choose a difficulty level that is appropriate for the updated task, considering Easy, Medium, and Hard levels. Adhere to JSON format: {
+              prompt = `${basePrompt} Make the revised task slightly more difficult. Choose a difficulty level that is appropriate for the updated task, considering easy, medium, and hard levels. Adhere to JSON format: {
                   "name": "Updated Task Name",
                   "instructions": "Updated Instructions",
                   "resources": ["Resource 1", "Resource 2"],
@@ -575,7 +575,7 @@ router.post('/task-action', requireAuth(), async (req, res) => {
               }`;
               break;
           case "Too hard":
-              prompt = `${basePrompt} Make the revised task slightly easier. Choose a difficulty level that is appropriate for the updated task, considering Easy, Medium, and Hard levels. Adhere to JSON format: {
+              prompt = `${basePrompt} Make the revised task slightly easier. Choose a difficulty level that is appropriate for the updated task, considering easy, medium, and hard levels. Adhere to JSON format: {
                   "name": "Updated Task Name",
                   "instructions": "Updated Instructions",
                   "resources": ["Resource 1", "Resource 2"],
@@ -615,10 +615,12 @@ router.post('/task-action', requireAuth(), async (req, res) => {
               taskUpdate.objective = task.objective;
           }
 
-          // Ensure difficulty is present
+          // Ensure difficulty is present and lowercase
           if (!taskUpdate.difficulty) {
-              taskUpdate.difficulty = task.difficulty || "easy"; // Default to Easy if not specified
+              taskUpdate.difficulty = "easy"; // Default to easy if not specified
           }
+
+          taskUpdate.difficulty = taskUpdate.difficulty.toLowerCase();
 
           res.json({ taskUpdate });
       } catch (parseError: any) {
