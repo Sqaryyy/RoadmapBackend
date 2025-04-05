@@ -559,37 +559,40 @@ router.post('/task-action', requireAuth(), async (req, res) => {
           topic_name: req.body.topic_name, // Prefer topic name from the body if exists
       };
 
-      const taskProperties = ["name", "instructions", "resources", "completionCriteria", "estimatedTime"];
-      const basePrompt = `You are revising a task based on user feedback. The original task details: ${JSON.stringify(task)}. User data: ${JSON.stringify(skillData)}. The user indicated the task is "${action}".  The objective of this task is: "${task.objective}". Return a revised version of the task, making sure to ONLY provide updated data for the following properties using the exact names given: ${taskProperties.join(", ")}. VERY IMPORTANT: "resources" MUST be an array of strings, not a single string. Respond with a JSON object.`;
+      const taskProperties = ["name", "instructions", "resources", "completionCriteria", "estimatedTime", "difficulty"];
+      const basePrompt = `You are revising a task based on user feedback. The original task details: ${JSON.stringify(task)}. User data: ${JSON.stringify(skillData)}. The user indicated the task is "${action}".  The objective of this task is: "${task.objective}". Return a revised version of the task, making sure to ONLY provide updated data for the following properties using the exact names given: ${taskProperties.join(", ")}. VERY IMPORTANT: "resources" MUST be an array of strings, not a single string. Respond with a JSON object. The valid difficulty levels are "Easy", "Medium", and "Hard".`;
 
       switch (action) {
           case "Too easy":
-              prompt = `${basePrompt} Make the revised task slightly more difficult. Adhere to JSON format: {
+              prompt = `${basePrompt} Make the revised task slightly more difficult. Choose a difficulty level that is appropriate for the updated task, considering Easy, Medium, and Hard levels. Adhere to JSON format: {
                   "name": "Updated Task Name",
                   "instructions": "Updated Instructions",
                   "resources": ["Resource 1", "Resource 2"],
                   "completionCriteria": "Updated Completion Criteria",
                   "estimatedTime": "Updated Estimated Time",
+                  "difficulty": "Updated Difficulty",
                   "objective": "${task.objective}"
               }`;
               break;
           case "Too hard":
-              prompt = `${basePrompt} Make the revised task slightly easier. Adhere to JSON format: {
+              prompt = `${basePrompt} Make the revised task slightly easier. Choose a difficulty level that is appropriate for the updated task, considering Easy, Medium, and Hard levels. Adhere to JSON format: {
                   "name": "Updated Task Name",
                   "instructions": "Updated Instructions",
                   "resources": ["Resource 1", "Resource 2"],
                   "completionCriteria": "Updated Completion Criteria",
                   "estimatedTime": "Updated Estimated Time",
+                  "difficulty": "Updated Difficulty",
                   "objective": "${task.objective}"
               }`;
               break;
           case "Dont understand":
-              prompt = `${basePrompt} Re-explain the task in simpler terms. Adhere to JSON format: {
+              prompt = `${basePrompt} Re-explain the task in simpler terms.  Maintain the original difficulty level. Adhere to JSON format: {
                   "name": "Updated Task Name",
                   "instructions": "Updated Instructions",
                   "resources": ["Resource 1", "Resource 2"],
                   "completionCriteria": "Updated Completion Criteria",
                   "estimatedTime": "Updated Estimated Time",
+                  "difficulty": "${task.difficulty}",
                   "objective": "${task.objective}"
               }`;
               break;
@@ -610,6 +613,11 @@ router.post('/task-action', requireAuth(), async (req, res) => {
           //Post processing - If the task update doesn't have the objective property set it to the value from the database.
           if(!taskUpdate.objective) {
               taskUpdate.objective = task.objective;
+          }
+
+          // Ensure difficulty is present
+          if (!taskUpdate.difficulty) {
+              taskUpdate.difficulty = task.difficulty || "easy"; // Default to Easy if not specified
           }
 
           res.json({ taskUpdate });
