@@ -1,17 +1,26 @@
-// taskController.ts
 import { Request, Response } from 'express';
 import { TaskModel } from '../models/Task';
 import { Task } from '../interfaces/ITask';
 import { body, validationResult } from 'express-validator';
+import mongoose from 'mongoose';
 
 // Create Task
 export const createTask = [
-    body('title').isString().withMessage('Title must be a string').trim().notEmpty().withMessage('Title is required'),
-    body('description').isString().withMessage('Description must be a string').trim().notEmpty().withMessage('Description is required'),
-    body('topicId').isString().withMessage('topicId must be a string').trim().notEmpty().withMessage('topicId is required'),
-    body('type').isString().withMessage('type must be a string').trim().notEmpty().withMessage('type is required'),
-    body('content').isString().withMessage('content must be a string').trim().notEmpty().withMessage('content is required'),
-    body('order').isInt().withMessage('order must be an integer'),
+    body('name').isString().withMessage('Name must be a string').trim().notEmpty().withMessage('Name is required'),
+    body('topicId').isString().withMessage('topicId must be a string').trim().notEmpty().withMessage('topicId is required').custom((value) => {
+        if (!mongoose.Types.ObjectId.isValid(value)) {
+            throw new Error('Invalid topicId');
+        }
+        return true;
+    }),
+    body('completionCriteria').optional().isString().withMessage('completionCriteria must be a string').trim(),
+    body('estimatedTime').optional().isString().withMessage('estimatedTime must be a string').trim(),
+    body('instructions').optional().isString().withMessage('instructions must be a string').trim(),
+    body('objective').optional().isString().withMessage('objective must be a string').trim(),
+    body('resources').optional().isArray().withMessage('resources must be an array of strings'),
+    body('resources.*').optional().isString().withMessage('Each resource must be a string'),
+    body('isCompleted').optional().isBoolean().withMessage('isCompleted must be a boolean'),
+    body('difficulty').isString().withMessage('Difficulty must be a string').trim().notEmpty().withMessage('Difficulty is required').isIn(['easy', 'medium', 'hard']).withMessage('Difficulty must be one of: easy, medium, hard'),
     async (req: Request, res: Response) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
@@ -60,12 +69,21 @@ export const getTasksByTopicId = async (req: Request, res: Response) => {
 
 // Update Task
 export const updateTask = [
-    body('title').optional().isString().withMessage('Title must be a string').trim(),
-    body('description').optional().isString().withMessage('Description must be a string').trim(),
-    body('topicId').optional().isString().withMessage('topicId must be a string').trim(),
-    body('type').optional().isString().withMessage('type must be a string').trim(),
-    body('content').optional().isString().withMessage('content must be a string').trim(),
-    body('order').optional().isInt().withMessage('order must be an integer'),
+    body('name').optional().isString().withMessage('Name must be a string').trim(),
+    body('topicId').optional().isString().withMessage('topicId must be a string').trim().custom((value) => {
+        if (value && !mongoose.Types.ObjectId.isValid(value)) {
+            throw new Error('Invalid topicId');
+        }
+        return true;
+    }),
+    body('completionCriteria').optional().isString().withMessage('completionCriteria must be a string').trim(),
+    body('estimatedTime').optional().isString().withMessage('estimatedTime must be a string').trim(),
+    body('instructions').optional().isString().withMessage('instructions must be a string').trim(),
+    body('objective').optional().isString().withMessage('objective must be a string').trim(),
+    body('resources').optional().isArray().withMessage('resources must be an array of strings'),
+    body('resources.*').optional().isString().withMessage('Each resource must be a string'),
+    body('isCompleted').optional().isBoolean().withMessage('isCompleted must be a boolean'),
+    body('difficulty').optional().isString().withMessage('Difficulty must be a string').trim().isIn(['easy', 'medium', 'hard']).withMessage('Difficulty must be one of: easy, medium, hard'),
     async (req: Request, res: Response) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
