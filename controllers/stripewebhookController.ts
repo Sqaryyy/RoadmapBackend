@@ -452,14 +452,44 @@ async function handleSubscriptionUpdated(event: Stripe.Event) {
         }
 
         if (user && user.email) {
-            // subscription.plan.name is not correct, we should get the plan name from our DB
-            const plan = await PlanModel.findById(user.planId);
-            if(plan) {
-                const emailSent = await sendSubscriptionUpdatedEmail(user.email, 'previousPlan', plan.name);
-                if (emailSent) {
-                    console.log(`[STRIPE HOOK] Subscription updated email sent to ${user.email}`);
+            const currentPlan = await PlanModel.findById(user.planId);
+
+            let previousPlanName = "Unknown Plan";
+            if (
+                subscription.items &&
+                subscription.items.data &&
+                subscription.items.data.length > 0 &&
+                subscription.items.data[0].plan && typeof subscription.items.data[0].plan === 'object' && 'id' in subscription.items.data[0].plan
+            ) {
+
+                try {
+                    const stripePlan = await stripe.plans.retrieve((subscription.items.data[0].plan as any).id);
+                    if (stripePlan) {
+                        previousPlanName = stripePlan.nickname || "Unknown Plan"; // Use nickname or default
+                    } else {
+                        console.warn(`[STRIPE HOOK] Previous plan not found from Stripe: ${(subscription.items.data[0].plan as any).id}`);
+                    }
+                } catch (err) {
+                    console.error("[STRIPE HOOK] Could not fetch the previous plan with that ID");
+                }
+            }
+
+            if (currentPlan) {
+                // Check if the subscription was just set to cancel at the end of the period
+                if (
+                    subscription.cancel_at_period_end === true &&
+                    event.data.previous_attributes &&  // Check if previous_attributes exists
+                    (event.data.previous_attributes as any).cancel_at_period_end === false
+                ) {
+                    const emailSent = await sendSubscriptionUpdatedEmail(user.email, previousPlanName, currentPlan.name);
+
+                    if (emailSent) {
+                        console.log(`[STRIPE HOOK] Subscription scheduled to cancel email sent to ${user.email}`);
+                    } else {
+                        console.error(`[STRIPE HOOK] Failed to send subscription scheduled to cancel email to ${user.email}`);
+                    }
                 } else {
-                    console.error(`[STRIPE HOOK] Failed to send subscription updated email to ${user.email}`);
+                    console.log('[STRIPE HOOK] Ignoring subscription update: either cancel_at_period_end is not true, or it was not just set to true.');
                 }
             } else {
                 console.warn("[STRIPE HOOK] User plan not found, cannot send subscription updated email.");

@@ -45,7 +45,7 @@ router.post('/', async (req: Request, res: Response) => {
                 'svix-signature': svixSignature,
             } as WebhookRequiredHeaders
         ) as WebhookEvent;
-    } catch (err) {
+    } catch (err: any) { // Explicitly type err as any
         console.error('🚨 Webhook verification failed:', err);
         return res.status(400).json({ error: 'Invalid webhook signature' });
     }
@@ -111,7 +111,7 @@ router.post('/', async (req: Request, res: Response) => {
                         }
                     }
                 }
-            } catch (error) {
+            } catch (error: any) { // Explicitly type error as any
                 console.error('Error fetching user metadata from Clerk:', error);
             }
 
@@ -213,7 +213,7 @@ router.post('/', async (req: Request, res: Response) => {
                         }
                     }
                 }
-            } catch (error) {
+            } catch (error: any) { // Explicitly type error as any
                 console.error('Error fetching user metadata from Clerk:', error);
             }
             
@@ -232,7 +232,7 @@ router.post('/', async (req: Request, res: Response) => {
         }
 
         return res.status(200).json({ success: true });
-    } catch (error) {
+    } catch (error: any) { // Explicitly type error as any
         console.error('❌ Error processing webhook:', error);
         return res.status(500).json({ error: 'Error processing webhook' });
     }
