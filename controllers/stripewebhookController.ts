@@ -103,6 +103,11 @@ async function processEvent(event: Stripe.Event): Promise<boolean> {
                         // Handle successful payments
                         const invoice = event.data.object as Stripe.Invoice;
                         const invoiceCustomerId = invoice.customer as string;
+
+                        if (typeof invoiceCustomerId !== 'string') {
+                            console.error(`[STRIPE HOOK] Customer ID isn't string.\nEvent type: ${event.type}\nEvent data:`, event.data.object);
+                            return false;
+                        }
                     
                         // Sync subscription data
                         await syncStripeDataToKV(invoiceCustomerId);
@@ -158,7 +163,11 @@ async function processEvent(event: Stripe.Event): Promise<boolean> {
                                             // Ensure Pro plan is applied
                                             const proPlan = await PlanModel.findOne({ name: "Pro" });
                                             if (proPlan && proPlan._id) {
-                                                user.planId = new Types.ObjectId(proPlan._id.toString());
+                                                if (typeof proPlan._id === 'string') {
+                                                  user.planId = new Types.ObjectId(proPlan._id);
+                                                } else {
+                                                  user.planId = new Types.ObjectId(proPlan._id.toString());
+                                                }
                                             }
                         
                                             // Update subscription status based on Stripe's status
@@ -178,7 +187,7 @@ async function processEvent(event: Stripe.Event): Promise<boolean> {
                                             // Add this code where you update the user's fields:
                                             if ('cancelAtPeriodEnd' in user) {
                                                 user.cancelAtPeriodEnd = subscription.cancel_at_period_end;
-}
+                                            }
                         
                                             user.updatedAt = new Date();
                                             await user.save();
@@ -220,6 +229,11 @@ async function processEvent(event: Stripe.Event): Promise<boolean> {
             case 'payment_intent.succeeded': {
                 const paymentIntent = event.data.object as Stripe.PaymentIntent;
                 const customerId = paymentIntent.customer as string;
+
+                if (typeof customerId !== 'string') {
+                    console.error(`[STRIPE HOOK] Customer ID isn't string.\nEvent type: ${event.type}\nEvent data:`, event.data.object);
+                    return false;
+                }
                 try {
                     const customer = await stripe.customers.retrieve(customerId);
                     if (isCustomerWithMetadata(customer)) {
@@ -247,6 +261,10 @@ async function processEvent(event: Stripe.Event): Promise<boolean> {
             case 'payment_intent.payment_failed': {
                 const paymentIntent = event.data.object as Stripe.PaymentIntent;
                 const customerId = paymentIntent.customer as string;
+                if (typeof customerId !== 'string') {
+                    console.error(`[STRIPE HOOK] Customer ID isn't string.\nEvent type: ${event.type}\nEvent data:`, event.data.object);
+                    return false;
+                }
                 try {
                     const customer = await stripe.customers.retrieve(customerId);
                     if (isCustomerWithMetadata(customer)) {
@@ -272,6 +290,11 @@ async function processEvent(event: Stripe.Event): Promise<boolean> {
             case 'payment_intent.canceled': {
                 const paymentIntent = event.data.object as Stripe.PaymentIntent;
                 const customerId = paymentIntent.customer as string;
+
+                if (typeof customerId !== 'string') {
+                    console.error(`[STRIPE HOOK] Customer ID isn't string.\nEvent type: ${event.type}\nEvent data:`, event.data.object);
+                    return false;
+                }
                 try {
                     const customer = await stripe.customers.retrieve(customerId);
                     if (isCustomerWithMetadata(customer)) {
@@ -328,6 +351,11 @@ async function handleCheckoutSessionCompleted(event: Stripe.Event) {
 
     const stripeCustomerId = session.customer as string;
 
+    if (typeof stripeCustomerId !== 'string') {
+        console.error(`[STRIPE HOOK] Customer ID isn't string.\nEvent type: ${event.type}\nEvent data:`, event.data.object);
+        return;
+    }
+
     try {
         // Retrieve the customer from Stripe
         const customer = await stripe.customers.retrieve(stripeCustomerId);
@@ -359,7 +387,11 @@ async function handleCheckoutSessionCompleted(event: Stripe.Event) {
 
         // Update the user's plan with proper type conversion
         if (proPlan._id) { // Check if _id exists
-            user.planId = new Types.ObjectId(proPlan._id.toString());
+            if (typeof proPlan._id === 'string') {
+              user.planId = new Types.ObjectId(proPlan._id);
+            } else {
+              user.planId = new Types.ObjectId(proPlan._id.toString());
+            }
             await user.save();
 
             // Update Redis cache
@@ -395,6 +427,11 @@ async function handleCheckoutSessionCompleted(event: Stripe.Event) {
 async function handleSubscriptionCreated(event: Stripe.Event) {
     const subscription = event.data.object as Stripe.Subscription;
     const customerId = subscription.customer as string;
+
+    if (typeof customerId !== 'string') {
+        console.error(`[STRIPE HOOK] Customer ID isn't string.\nEvent type: ${event.type}\nEvent data:`, event.data.object);
+        return;
+    }
 
     try {
         const customer = await stripe.customers.retrieve(customerId);
@@ -436,6 +473,11 @@ async function handleSubscriptionCreated(event: Stripe.Event) {
 async function handleSubscriptionUpdated(event: Stripe.Event) {
     const subscription = event.data.object as Stripe.Subscription;
     const customerId = subscription.customer as string;
+
+    if (typeof customerId !== 'string') {
+        console.error(`[STRIPE HOOK] Customer ID isn't string.\nEvent type: ${event.type}\nEvent data:`, event.data.object);
+        return;
+    }
 
     try {
         const customer = await stripe.customers.retrieve(customerId);
@@ -507,6 +549,11 @@ async function handleSubscriptionUpdated(event: Stripe.Event) {
 async function handleSubscriptionPaused(event: Stripe.Event) {
     const subscription = event.data.object as Stripe.Subscription;
     const customerId = subscription.customer as string;
+
+    if (typeof customerId !== 'string') {
+        console.error(`[STRIPE HOOK] Customer ID isn't string.\nEvent type: ${event.type}\nEvent data:`, event.data.object);
+        return;
+    }
     
     try {
         // Sync Stripe data to KV storage
@@ -561,6 +608,11 @@ async function handleSubscriptionPaused(event: Stripe.Event) {
 async function handleSubscriptionResumed(event: Stripe.Event) {
     const subscription = event.data.object as Stripe.Subscription;
     const customerId = subscription.customer as string;
+
+    if (typeof customerId !== 'string') {
+        console.error(`[STRIPE HOOK] Customer ID isn't string.\nEvent type: ${event.type}\nEvent data:`, event.data.object);
+        return;
+    }
     
     try {
         // Sync Stripe data to KV storage
@@ -590,7 +642,11 @@ async function handleSubscriptionResumed(event: Stripe.Event) {
         // Make sure Pro plan is still applied
         const proPlan = await PlanModel.findOne({ name: "Pro" });
         if (proPlan && proPlan._id) {
-            user.planId = new Types.ObjectId(proPlan._id.toString());
+            if (typeof proPlan._id === 'string') {
+              user.planId = new Types.ObjectId(proPlan._id);
+            } else {
+              user.planId = new Types.ObjectId(proPlan._id.toString());
+            }
         }
         
         user.updatedAt = new Date();
@@ -620,6 +676,11 @@ async function handleSubscriptionResumed(event: Stripe.Event) {
 async function handleTrialWillEnd(event: Stripe.Event) {
     const subscription = event.data.object as Stripe.Subscription;
     const customerId = subscription.customer as string;
+
+    if (typeof customerId !== 'string') {
+        console.error(`[STRIPE HOOK] Customer ID isn't string.\nEvent type: ${event.type}\nEvent data:`, event.data.object);
+        return;
+    }
     const trialEnd = subscription.trial_end;
     
     try {
@@ -672,7 +733,12 @@ async function handleTrialWillEnd(event: Stripe.Event) {
 async function handleInvoicePaymentFailed(event: Stripe.Event) {
     const invoice = event.data.object as Stripe.Invoice;
     const customerId = invoice.customer as string;
-    
+
+    if (typeof customerId !== 'string') {
+        console.error(`[STRIPE HOOK] Customer ID isn't string.\nEvent type: ${event.type}\nEvent data:`, event.data.object);
+        return;
+    }
+
     try {
         // Find user associated with this invoice
         const customer = await stripe.customers.retrieve(customerId);
@@ -680,37 +746,37 @@ async function handleInvoicePaymentFailed(event: Stripe.Event) {
             console.error("[STRIPE HOOK] Customer is deleted or missing userId in metadata:", customer);
             return;
         }
-        
+
         const clerkId = customer.metadata.userId;
         const user = await UserModel.findOne({ clerkId });
-        
+
         if (!user) {
             console.error("[STRIPE HOOK] User not found for clerkId:", clerkId);
             return;
         }
-        
+
         // If you've added the paymentIssue fields:
         if ('paymentIssue' in user) {
             user.paymentIssue = true;
         }
-        
+
         if ('lastFailedPayment' in user) {
             user.lastFailedPayment = new Date();
         }
-        
+
         // You might want to update the subscription status as well
         if ('subscriptionStatus' in user) {
             user.subscriptionStatus = 'past_due';
         }
-        
+
         user.updatedAt = new Date();
         await user.save();
-        
+
         // Update Redis cache
         await redisClient.set(`user:${clerkId}`, JSON.stringify(user));
-        
+
         console.log(`[STRIPE HOOK] Payment failed for user ${clerkId}, invoice ID: ${invoice.id}`);
-        
+
         if (user && user.email) {
             const emailSent = await sendPaymentFailedEmail(user.email);
             if (emailSent) {
@@ -730,6 +796,11 @@ async function handleInvoicePaymentFailed(event: Stripe.Event) {
 async function handlePaymentActionRequired(event: Stripe.Event) {
     const invoice = event.data.object as Stripe.Invoice;
     const customerId = invoice.customer as string;
+
+    if (typeof customerId !== 'string') {
+        console.error(`[STRIPE HOOK] Customer ID isn't string.\nEvent type: ${event.type}\nEvent data:`, event.data.object);
+        return;
+    }
 
     try {
         // Find user associated with this invoice
@@ -766,6 +837,11 @@ async function handleSubscriptionDeleted(event: Stripe.Event) {
     const subscription = event.data.object as Stripe.Subscription;
     const customerId = subscription.customer as string;
 
+    if (typeof customerId !== 'string') {
+        console.error(`[STRIPE HOOK] Customer ID isn't string.\nEvent type: ${event.type}\nEvent data:`, event.data.object);
+        return;
+    }
+
     try {
         // Sync Stripe data to KV storage
         await syncStripeDataToKV(customerId);
@@ -793,7 +869,11 @@ async function handleSubscriptionDeleted(event: Stripe.Event) {
         }
 
         // Downgrade user to free plan
-        user.planId = new Types.ObjectId(freePlan._id.toString());
+        if (typeof freePlan._id === 'string') {
+          user.planId = new Types.ObjectId(freePlan._id);
+        } else {
+          user.planId = new Types.ObjectId(freePlan._id.toString());
+        }
 
         // Update subscription status
         if ('subscriptionStatus' in user) {

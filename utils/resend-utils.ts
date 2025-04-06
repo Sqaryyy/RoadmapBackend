@@ -11,20 +11,30 @@ interface EmailParams {
 
 async function sendEmail(params: EmailParams): Promise<boolean> {
     try {
-        const data = await resend.emails.send({
-            from: 'notifications@updates.roadmap.it.com', // Replace with your verified Resend email
+        // Comment out the actual sending part and just log the data
+        // const data = await resend.emails.send({
+        //     from: 'notifications@updates.roadmap.it.com', // Replace with your verified Resend email
+        //     to: params.to,
+        //     subject: params.subject,
+        //     html: params.html,
+        // });
+
+        // Create a mock data object to simulate the response from resend.emails.send
+        const data = {
+            id: 'mock-email-id',  // Replace with a more meaningful mock value if needed
+            from: 'notifications@updates.roadmap.it.com',
             to: params.to,
-            subject: params.subject,
-            html: params.html,
-        });
-        console.log("Email sent successfully:", data);
+            subject: params.subject
+        };
+
+        console.log("Email would be sent with the following data:", params); // Log the input parameters
+        console.log("Mock email sent successfully (no actual email sent):", data);
         return true;
     } catch (error) {
-        console.error("Error sending email:", error);
+        console.error("Error (simulated) sending email:", error);
         return false;
     }
 }
-
 // --- Helper function to generate consistent email template ---
 const createEmailTemplate = (content: string) => {
     const brandColor = '#007BFF'; // Replace with your brand color
