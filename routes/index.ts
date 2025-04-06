@@ -14,10 +14,9 @@ const router = express.Router();
 
 // Don't rate limit webhook routes
 router.use('/stripe', stripeWebhookRoutes);
-router.use('/clerk', clerkWebhookRoutes);
 
 router.use(express.json());
-
+router.use('/clerk', clerkWebhookRoutes);
 // Apply general rate limiting to all routes
 router.use(generalRateLimiterMiddleware);
 
