@@ -27,7 +27,7 @@ export type STRIPE_SUB_CACHE =
       status: "none";
     };
 
-async function syncStripeDataToKV(customerId: string): Promise<STRIPE_SUB_CACHE> {
+export async function syncStripeDataToKV(customerId: string): Promise<STRIPE_SUB_CACHE> {
   try {
     // Fetch latest subscription data from Stripe
     const subscriptions = await stripe.subscriptions.list({
@@ -236,5 +236,3 @@ export async function createTrialCheckoutSession(
     return null;
   }
 }
-
-export { syncStripeDataToKV };
