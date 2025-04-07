@@ -458,7 +458,7 @@ async function handleSubscriptionCreated(event: Stripe.Event) {
         await user.save();
         
         // Update Redis cache with the latest subscription data
-        await syncStripeDataToKV(user.clerkId);
+        await syncStripeDataToKV(customerId);
 
         // Send email notification if user has email
         if (user.email) {
@@ -525,7 +525,7 @@ async function handleSubscriptionUpdated(event: Stripe.Event) {
         await user.save();
         
         // Update Redis cache with the latest data
-        await syncStripeDataToKV(user.clerkId);
+        await syncStripeDataToKV(customerId);
         
         console.log(`[STRIPE HOOK] Updated user ${clerkId} with subscription status: ${subscription.status}, cancelAtPeriodEnd: ${subscription.cancel_at_period_end}`);
 
