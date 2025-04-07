@@ -399,17 +399,17 @@ async function handleCheckoutSessionCompleted(event: Stripe.Event) {
 
             console.log(`[STRIPE HOOK] Updated plan for user ${clerkId} to Pro`);
 
-            // Send welcome email
-            if (user && user.email) {
-                const emailSent = await sendWelcomeEmail(user.email);
-                if (emailSent) {
-                    console.log(`[STRIPE HOOK] Welcome email sent to ${user.email}`);
-                } else {
-                    console.error(`[STRIPE HOOK] Failed to send welcome email to ${user.email}`);
-                }
-            } else {
-                console.warn("[STRIPE HOOK] User email not found, cannot send welcome email.");
-            }
+            // **COMMENT OUT the Welcome Email**
+            // if (user && user.email) {
+            //     const emailSent = await sendWelcomeEmail(user.email);
+            //     if (emailSent) {
+            //         console.log(`[STRIPE HOOK] Welcome email sent to ${user.email}`);
+            //     } else {
+            //         console.error(`[STRIPE HOOK] Failed to send welcome email to ${user.email}`);
+            //     }
+            // } else {
+            //     console.warn("[STRIPE HOOK] User email not found, cannot send welcome email.");
+            // }
 
             // Sync
             await syncStripeDataToKV(stripeCustomerId);
