@@ -508,7 +508,29 @@ async function handleSubscriptionUpdated(event: Stripe.Event) {
             return;
         }
 
-        if (user && user.email) {
+        // Update the user's subscription fields regardless of what changed
+        user.subscriptionStatus = subscription.status;
+        user.cancelAtPeriodEnd = subscription.cancel_at_period_end;
+        
+        // Update trial end and current period end dates if present
+        if (subscription.trial_end) {
+            user.trialEndDate = new Date(subscription.trial_end * 1000);
+        }
+        
+        if (subscription.current_period_end) {
+            user.currentPeriodEnd = new Date(subscription.current_period_end * 1000);
+        }
+        
+        // Save the updated user document
+        await user.save();
+        
+        // Update Redis cache with the latest data
+        await syncStripeDataToKV(user.clerkId);
+        
+        console.log(`[STRIPE HOOK] Updated user ${clerkId} with subscription status: ${subscription.status}, cancelAtPeriodEnd: ${subscription.cancel_at_period_end}`);
+
+        // Email notification logic for cancellation
+        if (user.email) {
             const currentPlan = await PlanModel.findById(user.planId);
 
             let previousPlanName = "Unknown Plan";
@@ -518,7 +540,6 @@ async function handleSubscriptionUpdated(event: Stripe.Event) {
                 subscription.items.data.length > 0 &&
                 subscription.items.data[0].plan && typeof subscription.items.data[0].plan === 'object' && 'id' in subscription.items.data[0].plan
             ) {
-
                 try {
                     const stripePlan = await stripe.plans.retrieve((subscription.items.data[0].plan as any).id);
                     if (stripePlan) {
@@ -546,12 +567,11 @@ async function handleSubscriptionUpdated(event: Stripe.Event) {
                         console.error(`[STRIPE HOOK] Failed to send subscription scheduled to cancel email to ${user.email}`);
                     }
                 } else {
-                    console.log('[STRIPE HOOK] Ignoring subscription update: either cancel_at_period_end is not true, or it was not just set to true.');
+                    console.log('[STRIPE HOOK] Ignoring email notification: either cancel_at_period_end is not true, or it was not just set to true.');
                 }
             } else {
                 console.warn("[STRIPE HOOK] User plan not found, cannot send subscription updated email.");
             }
-
         } else {
             console.warn("[STRIPE HOOK] User email not found, cannot send subscription updated email.");
         }
