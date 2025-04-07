@@ -447,8 +447,22 @@ async function handleSubscriptionCreated(event: Stripe.Event) {
             return;
         }
 
-        if (user && user.email) {
-            // subscription.plan.name is not correct, we should get the plan name from our DB
+        // Update subscription fields on user document
+        user.subscriptionStatus = subscription.status; // Should be "trialing" for new subscriptions with trial
+        user.subscriptionId = subscription.id;
+        user.trialEndDate = subscription.trial_end ? new Date(subscription.trial_end * 1000) : undefined;
+        user.currentPeriodEnd = new Date(subscription.current_period_end * 1000);
+        user.cancelAtPeriodEnd = subscription.cancel_at_period_end;
+        
+        // Save the updated user document
+        await user.save();
+        
+        // Update Redis cache with the latest subscription data
+        await syncStripeDataToKV(user.clerkId);
+
+        // Send email notification if user has email
+        if (user.email) {
+            // Get the plan name from our DB
             const plan = await PlanModel.findById(user.planId);
             if(plan) {
                 const emailSent = await sendSubscriptionCreatedEmail(user.email, plan.name);
@@ -460,10 +474,11 @@ async function handleSubscriptionCreated(event: Stripe.Event) {
             } else {
                 console.warn("[STRIPE HOOK] User plan not found, cannot send subscription created email.");
             }
-
         } else {
             console.warn("[STRIPE HOOK] User email not found, cannot send subscription created email.");
         }
+
+        console.log(`[STRIPE HOOK] Successfully updated subscription data for user ${clerkId}`);
 
     } catch (error) {
         console.error("[STRIPE HOOK] Error handling subscription created:", error);
